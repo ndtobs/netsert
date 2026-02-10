@@ -12,6 +12,7 @@ import (
 
 	"github.com/ndtobs/netsert/pkg/assertion"
 	"github.com/ndtobs/netsert/pkg/config"
+	"github.com/ndtobs/netsert/pkg/gnmiclient"
 	"github.com/ndtobs/netsert/pkg/runner"
 	"github.com/spf13/cobra"
 )
@@ -64,6 +65,7 @@ func main() {
 
 	rootCmd.AddCommand(runCmd())
 	rootCmd.AddCommand(validateCmd())
+	rootCmd.AddCommand(getCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -186,6 +188,97 @@ func runAssertions(path string, parallel int, failFast bool) error {
 	if result.Failed > 0 || result.Errors > 0 {
 		os.Exit(1)
 	}
+
+	return nil
+}
+
+func getCmd() *cobra.Command {
+	var (
+		username string
+		password string
+		insecure bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "get <target> <path>",
+		Short: "Query a gNMI path on a device",
+		Long: `Query a single gNMI path on a device to discover available data.
+
+Examples:
+  netsert get spine1:6030 /interfaces/interface[name=Ethernet1]/state/oper-status
+  netsert get spine1:6030 /system/config/hostname
+  netsert get spine1:6030 /interfaces/interface --insecure
+
+Use this to explore what paths are available and what values they return.`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runGet(args[0], args[1], username, password, insecure)
+		},
+	}
+
+	cmd.Flags().StringVarP(&username, "username", "u", "", "username (or use config file)")
+	cmd.Flags().StringVarP(&password, "password", "P", "", "password (or use config file)")
+	cmd.Flags().BoolVarP(&insecure, "insecure", "k", false, "skip TLS verification")
+
+	return cmd
+}
+
+func runGet(target, path, username, password string, insecure bool) error {
+	// Load config for credentials if not provided
+	cfg, _ := config.Load()
+	if cfg != nil && (username == "" || password == "") {
+		cfgUser, cfgPass, cfgInsecure := cfg.GetCredentials(target)
+		if username == "" {
+			username = cfgUser
+		}
+		if password == "" {
+			password = cfgPass
+		}
+		if !insecure {
+			insecure = cfgInsecure
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	client, err := gnmiclient.NewClient(gnmiclient.Config{
+		Address:  target,
+		Username: username,
+		Password: password,
+		Insecure: insecure,
+		Timeout:  timeout,
+	})
+	if err != nil {
+		return fmt.Errorf("connect to %s: %w", target, err)
+	}
+	defer client.Close()
+
+	value, exists, err := client.Get(ctx, path, username, password)
+	if err != nil {
+		return fmt.Errorf("get %s: %w", path, err)
+	}
+
+	if output == "json" {
+		out := map[string]interface{}{
+			"target": target,
+			"path":   path,
+			"exists": exists,
+			"value":  value,
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(out)
+	}
+
+	if !exists {
+		fmt.Printf("Path: %s\n", path)
+		fmt.Printf("Exists: false\n")
+		return nil
+	}
+
+	fmt.Printf("Path: %s\n", path)
+	fmt.Printf("Value: %s\n", value)
 
 	return nil
 }
