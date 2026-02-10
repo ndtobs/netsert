@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -19,7 +21,34 @@ var (
 	// Global flags
 	verbose bool
 	timeout time.Duration
+	output  string
 )
+
+// JSONOutput is the structure for JSON output
+type JSONOutput struct {
+	Summary   JSONSummary    `json:"summary"`
+	Results   []JSONResult   `json:"results"`
+}
+
+type JSONSummary struct {
+	File     string  `json:"file"`
+	Total    int     `json:"total"`
+	Passed   int     `json:"passed"`
+	Failed   int     `json:"failed"`
+	Errors   int     `json:"errors"`
+	Duration string  `json:"duration"`
+	Success  bool    `json:"success"`
+}
+
+type JSONResult struct {
+	Target      string `json:"target"`
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+	Status      string `json:"status"` // "pass", "fail", "error"
+	Actual      string `json:"actual,omitempty"`
+	Expected    string `json:"expected,omitempty"`
+	Error       string `json:"error,omitempty"`
+}
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -30,6 +59,7 @@ func main() {
 
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().DurationVarP(&timeout, "timeout", "t", 30*time.Second, "timeout per assertion")
+	rootCmd.PersistentFlags().StringVarP(&output, "output", "o", "text", "output format (text, json)")
 
 	rootCmd.AddCommand(runCmd())
 	rootCmd.AddCommand(validateCmd())
@@ -76,6 +106,17 @@ func validateCmd() *cobra.Command {
 				totalAssertions += len(t.Assertions)
 			}
 
+			if output == "json" {
+				out := map[string]interface{}{
+					"valid":      true,
+					"targets":    len(af.Targets),
+					"assertions": totalAssertions,
+				}
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(out)
+			}
+
 			fmt.Printf("✓ Valid: %d targets, %d assertions\n", len(af.Targets), totalAssertions)
 			return nil
 		},
@@ -100,19 +141,31 @@ func runAssertions(path string, parallel int, failFast bool) error {
 		cancel()
 	}()
 
-	r := runner.NewRunner(os.Stdout)
+	// For JSON output, suppress text output from runner
+	var runnerOutput io.Writer = os.Stdout
+	if output == "json" {
+		runnerOutput = io.Discard
+	}
+
+	r := runner.NewRunner(runnerOutput)
 	r.Timeout = timeout
 	r.Parallel = parallel
 	r.Verbose = verbose
 
-	fmt.Printf("Running assertions from %s\n\n", path)
+	if output != "json" {
+		fmt.Printf("Running assertions from %s\n\n", path)
+	}
 
 	result, err := r.Run(ctx, af)
 	if err != nil {
 		return err
 	}
 
-	// Print summary
+	if output == "json" {
+		return outputJSON(path, result)
+	}
+
+	// Text output
 	fmt.Println()
 	fmt.Printf("Completed in %s\n", result.Duration.Round(time.Millisecond))
 	fmt.Printf("  Total:  %d\n", result.TotalAssertions)
@@ -122,7 +175,58 @@ func runAssertions(path string, parallel int, failFast bool) error {
 		fmt.Printf("  Errors: %d\n", result.Errors)
 	}
 
-	// Exit with failure if any assertions failed
+	if result.Failed > 0 || result.Errors > 0 {
+		os.Exit(1)
+	}
+
+	return nil
+}
+
+func outputJSON(path string, result *runner.RunResult) error {
+	out := JSONOutput{
+		Summary: JSONSummary{
+			File:     path,
+			Total:    result.TotalAssertions,
+			Passed:   result.Passed,
+			Failed:   result.Failed,
+			Errors:   result.Errors,
+			Duration: result.Duration.Round(time.Millisecond).String(),
+			Success:  result.Failed == 0 && result.Errors == 0,
+		},
+		Results: make([]JSONResult, 0, len(result.Results)),
+	}
+
+	for _, res := range result.Results {
+		jr := JSONResult{
+			Target: res.Target,
+			Name:   res.Assertion.GetName(),
+			Path:   res.Assertion.Path,
+			Actual: res.ActualValue,
+		}
+
+		if res.Error != nil {
+			jr.Status = "error"
+			jr.Error = res.Error.Error()
+		} else if res.Passed {
+			jr.Status = "pass"
+		} else {
+			jr.Status = "fail"
+		}
+
+		// Add expected value if it was an equals assertion
+		if res.Assertion.Equals != nil {
+			jr.Expected = *res.Assertion.Equals
+		}
+
+		out.Results = append(out.Results, jr)
+	}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(out); err != nil {
+		return err
+	}
+
 	if result.Failed > 0 || result.Errors > 0 {
 		os.Exit(1)
 	}
