@@ -1,69 +1,408 @@
 # netsert
 
-Declarative network state assertions using gNMI.
+**Declarative network state assertions using gNMI.**
 
-Define expected network state in YAML, validate continuously against live devices.
-
-## Features
-
-- **Declarative assertions**: Define expected state, not procedures
-- **gNMI-native**: Uses streaming telemetry for real-time validation
-- **CI/CD ready**: Exit codes and structured output for pipeline integration
-- **Containerlab friendly**: Test your assertions before production
-
-## Installation
-
-```bash
-go install github.com/ndtobs/netsert/cmd/netsert@latest
-```
-
-## Quick Start
-
-1. Define your assertions:
+Define what your network *should* look like. netsert tells you if it *does*.
 
 ```yaml
 # assertions.yaml
 targets:
   - address: spine1:6030
     assertions:
-      - path: /interfaces/interface[name=Ethernet1]/state/oper-status
+      - name: Ethernet1 is UP
+        path: /interfaces/interface[name=Ethernet1]/state/oper-status
         equals: "UP"
-      - path: /network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
+
+      - name: BGP peer established
+        path: /network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
         equals: "ESTABLISHED"
 ```
 
-2. Run assertions:
+```bash
+$ netsert run assertions.yaml
+
+✓ [PASS] Ethernet1 is UP @ spine1:6030
+✓ [PASS] BGP peer established @ spine1:6030
+
+Completed in 89ms
+  Total:  2
+  Passed: 2
+  Failed: 0
+```
+
+## Why netsert?
+
+- **Declarative** — Define expected state, not procedures
+- **Fast** — gNMI over gRPC, not CLI scraping
+- **CI/CD ready** — JSON output, exit codes, runs headless
+- **Vendor neutral** — Works with any gNMI-enabled device (Arista, Nokia, Cisco, Juniper...)
+
+## Installation
+
+### From source
 
 ```bash
+git clone https://github.com/ndtobs/netsert.git
+cd netsert
+go build -o netsert ./cmd/netsert
+
+# Optional: install to PATH
+sudo mv netsert /usr/local/bin/
+```
+
+### Requirements
+
+- Go 1.22+ (build only)
+- Target devices must support gNMI
+
+## Quick Start
+
+### 1. Create a config file for credentials
+
+```yaml
+# ~/.netsert.yaml
+defaults:
+  username: admin
+  password: admin
+  insecure: true  # Skip TLS verification (lab only!)
+```
+
+### 2. Create an assertion file
+
+```yaml
+# my-assertions.yaml
+targets:
+  - address: switch1.lab:6030
+    assertions:
+      - name: Uplink is UP
+        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        equals: "UP"
+```
+
+### 3. Run it
+
+```bash
+netsert run my-assertions.yaml
+```
+
+## Commands
+
+### `run` — Execute assertions
+
+```bash
+netsert run assertions.yaml           # Run all assertions
+netsert run -v assertions.yaml        # Verbose (show actual vs expected)
+netsert run -o json assertions.yaml   # JSON output for CI
+netsert run -p 5 assertions.yaml      # 5 parallel assertions per target
+netsert run -t 10s assertions.yaml    # 10 second timeout per assertion
+```
+
+### `get` — Query a path (for discovery)
+
+```bash
+netsert get spine1:6030 /system/config/hostname
+# Path: /system/config/hostname
+# Value: spine1
+
+# Get full subtree as JSON
+netsert get -o json spine1:6030 /interfaces/interface[name=Ethernet1]/state
+```
+
+Use `get` to explore what paths exist and what values they return before writing assertions.
+
+### `validate` — Check assertion file syntax
+
+```bash
+netsert validate assertions.yaml
+# ✓ Valid: 2 targets, 5 assertions
+```
+
+## Assertion File Format
+
+```yaml
+targets:
+  - address: device1:6030          # Required: host:port
+    username: admin                 # Optional if in config file
+    password: secret                # Optional if in config file
+    insecure: true                  # Optional: skip TLS verification
+
+    assertions:
+      - name: Human readable name   # Optional: displayed in output
+        path: /gnmi/path            # Required: OpenConfig/native path
+        equals: "expected value"    # Assertion type (see below)
+```
+
+### Assertion Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `equals` | Exact string match | `equals: "UP"` |
+| `contains` | Substring match | `contains: "Ethernet"` |
+| `matches` | Regex match | `matches: "^(UP\|DOWN)$"` |
+| `exists` | Path exists (any value) | `exists: true` |
+| `absent` | Path does not exist | `absent: true` |
+| `gt` | Greater than (numeric) | `gt: "100"` |
+| `lt` | Less than (numeric) | `lt: "1000"` |
+| `gte` | Greater than or equal | `gte: "0"` |
+| `lte` | Less than or equal | `lte: "100"` |
+
+### Example Assertions
+
+```yaml
+assertions:
+  # Interface state
+  - name: Ethernet1 is UP
+    path: /interfaces/interface[name=Ethernet1]/state/oper-status
+    equals: "UP"
+
+  # Hostname
+  - name: Hostname is correct
+    path: /system/config/hostname
+    equals: "spine1"
+
+  # BGP session
+  - name: BGP to peer 10.0.0.2
+    path: /network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
+    equals: "ESTABLISHED"
+
+  # Counter threshold
+  - name: Input errors below threshold
+    path: /interfaces/interface[name=Ethernet1]/state/counters/in-errors
+    lt: "100"
+
+  # Regex match
+  - name: Version is 4.x
+    path: /system/state/software-version
+    matches: "^4\\."
+
+  # Path exists
+  - name: Loopback0 exists
+    path: /interfaces/interface[name=Loopback0]/state/oper-status
+    exists: true
+```
+
+## Configuration File
+
+netsert looks for config in these locations (first found wins):
+
+1. `./netsert.yaml`
+2. `./.netsert.yaml`
+3. `~/.netsert.yaml`
+4. `~/.config/netsert/config.yaml`
+
+### Config Format
+
+```yaml
+# Default credentials (used when not specified in assertion file)
+defaults:
+  username: admin
+  password: admin
+  insecure: true
+
+# Per-target overrides
+targets:
+  "prod-spine1:6030":
+    username: readonly
+    password: different-password
+
+  "prod-spine2:6030":
+    username: readonly
+    password: different-password
+```
+
+**Precedence:** Assertion file > per-target config > defaults
+
+## CI/CD Integration
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | All assertions passed |
+| 1 | One or more assertions failed |
+
+### JSON Output
+
+```bash
+netsert run -o json assertions.yaml
+```
+
+```json
+{
+  "summary": {
+    "file": "assertions.yaml",
+    "total": 5,
+    "passed": 4,
+    "failed": 1,
+    "errors": 0,
+    "duration": "92ms",
+    "success": false
+  },
+  "results": [
+    {
+      "target": "spine1:6030",
+      "name": "Ethernet1 is UP",
+      "path": "/interfaces/interface[name=Ethernet1]/state/oper-status",
+      "status": "pass",
+      "actual": "UP",
+      "expected": "UP"
+    },
+    {
+      "target": "spine1:6030",
+      "name": "Ethernet2 is UP",
+      "path": "/interfaces/interface[name=Ethernet2]/state/oper-status",
+      "status": "fail",
+      "actual": "DOWN",
+      "expected": "UP"
+    }
+  ]
+}
+```
+
+### GitHub Actions Example
+
+```yaml
+name: Network Validation
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: self-hosted  # Needs network access
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run network assertions
+        run: |
+          netsert run -o json assertions.yaml > results.json
+          
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: netsert-results
+          path: results.json
+```
+
+### GitLab CI Example
+
+```yaml
+network-validation:
+  stage: test
+  script:
+    - netsert run assertions.yaml
+  only:
+    - main
+```
+
+## Finding gNMI Paths
+
+gNMI paths follow OpenConfig or vendor-native YANG models. Here's how to discover them:
+
+### 1. Use `netsert get`
+
+```bash
+# Query a broad path and see what's returned
+netsert get -o json spine1:6030 /interfaces/interface[name=Ethernet1]
+
+# Then narrow down to specific leaves
+netsert get spine1:6030 /interfaces/interface[name=Ethernet1]/state/oper-status
+```
+
+### 2. Check OpenConfig models
+
+- [openconfig/public](https://github.com/openconfig/public/tree/master/release/models)
+- Common paths:
+  - `/interfaces/interface[name=X]/state/oper-status`
+  - `/system/config/hostname`
+  - `/network-instances/network-instance[name=X]/protocols/protocol[identifier=BGP][name=BGP]/bgp/...`
+
+### 3. Vendor documentation
+
+- [Arista gNMI paths](https://www.arista.com/en/support/product-documentation)
+- [Nokia SR Linux YANG](https://github.com/nokia/srlinux-yang-models)
+- [Cisco IOS-XR](https://github.com/YangModels/yang/tree/main/vendor/cisco/xr)
+
+## Testing with Containerlab
+
+[Containerlab](https://containerlab.dev) makes it easy to spin up network labs for testing.
+
+### Example Lab
+
+```yaml
+# topology.yaml
+name: netsert-lab
+
+topology:
+  kinds:
+    ceos:
+      image: ceos:latest
+  nodes:
+    spine1:
+      kind: ceos
+    leaf1:
+      kind: ceos
+  links:
+    - endpoints: ["spine1:eth1", "leaf1:eth1"]
+```
+
+```bash
+# Deploy lab
+sudo containerlab deploy -t topology.yaml
+
+# Run assertions
 netsert run assertions.yaml
+
+# Destroy lab
+sudo containerlab destroy -t topology.yaml
 ```
 
-3. Watch mode (continuous validation):
+## Supported Platforms
+
+Tested with:
+
+- **Arista cEOS / EOS** — Full support
+- **Nokia SR Linux** — Full support (OpenConfig paths)
+- **Cisco IOS-XR** — Should work (untested)
+- **Juniper** — Should work with OpenConfig (untested)
+
+Any device that supports gNMI with OpenConfig or native YANG models should work.
+
+## Development
 
 ```bash
-netsert watch assertions.yaml
+# Build
+go build -o netsert ./cmd/netsert
+
+# Run tests
+go test ./...
+
+# Run with race detector
+go test -race ./...
 ```
 
-## Assertion Types
+## Project Structure
 
-| Type | Description |
-|------|-------------|
-| `equals` | Exact match |
-| `contains` | Substring match |
-| `matches` | Regex match |
-| `exists` | Path exists (any value) |
-| `absent` | Path does not exist |
-| `gt`, `lt`, `gte`, `lte` | Numeric comparisons |
-
-## Example with Containerlab
-
-```bash
-cd examples/lab
-clab deploy -t topology.yaml
-netsert run ../assertions.yaml
-clab destroy -t topology.yaml
+```
+netsert/
+├── cmd/netsert/           # CLI entrypoint
+├── pkg/
+│   ├── assertion/         # Assertion types and validation
+│   ├── config/            # Config file loading
+│   ├── gnmiclient/        # gNMI client wrapper
+│   └── runner/            # Test execution
+├── examples/              # Example files
+│   ├── assertions.yaml
+│   └── lab/               # Containerlab topology
+└── WALKTHROUGH.md         # Code walkthrough
 ```
 
 ## License
 
 MIT
+
+## Contributing
+
+Issues and PRs welcome at [github.com/ndtobs/netsert](https://github.com/ndtobs/netsert).
