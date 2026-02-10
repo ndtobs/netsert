@@ -1,0 +1,40 @@
+# Example netsert assertions for Arista cEOS
+# Run with: netsert run assertions.yaml
+
+targets:
+  - address: clab-netsert-spine1:6030
+    username: admin
+    password: admin
+    insecure: true
+    assertions:
+      # Interface state
+      - name: Ethernet1 is UP
+        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        equals: "UP"
+      
+      - name: Ethernet2 is UP
+        path: /interfaces/interface[name=Ethernet2]/state/oper-status
+        equals: "UP"
+
+      # System info
+      - name: hostname is spine1
+        path: /system/config/hostname
+        equals: "spine1"
+
+      # BGP state (when configured)
+      # - name: BGP peer to leaf1 is established
+      #   path: /network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
+      #   equals: "ESTABLISHED"
+
+  - address: clab-netsert-leaf1:6030
+    username: admin
+    password: admin
+    insecure: true
+    assertions:
+      - name: Ethernet1 is UP
+        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        equals: "UP"
+
+      - name: hostname is leaf1
+        path: /system/config/hostname
+        equals: "leaf1"

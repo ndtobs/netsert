@@ -1,0 +1,19 @@
+# Binaries
+netsert
+*.exe
+dist/
+
+# Dependencies
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Containerlab
+clab-*/
+*.bak
+
+# Test
+coverage.out
