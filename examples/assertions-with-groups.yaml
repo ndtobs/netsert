@@ -1,0 +1,17 @@
+# Assertions using inventory groups
+# Run with: netsert run -i inventory.yaml assertions-with-groups.yaml
+
+targets:
+  # Use @groupname to expand to all hosts in group
+  - address: "@all"
+    assertions:
+      - name: Ethernet1 is UP
+        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        equals: "UP"
+
+  # Run specific assertions on spines only
+  - address: "@spines"
+    assertions:
+      - name: Ethernet2 is UP (spine only)
+        path: /interfaces/interface[name=Ethernet2]/state/oper-status
+        equals: "UP"

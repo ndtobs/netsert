@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/ndtobs/netsert/pkg/config"
 	"github.com/ndtobs/netsert/pkg/generate"
 	"github.com/ndtobs/netsert/pkg/gnmiclient"
+	"github.com/ndtobs/netsert/pkg/inventory"
 	"github.com/ndtobs/netsert/pkg/runner"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -77,8 +79,10 @@ func main() {
 
 func runCmd() *cobra.Command {
 	var (
-		parallel int
-		failFast bool
+		parallel     int
+		failFast     bool
+		inventoryFile string
+		group        string
 	)
 
 	cmd := &cobra.Command{
@@ -86,12 +90,14 @@ func runCmd() *cobra.Command {
 		Short: "Run assertions against targets",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAssertions(args[0], parallel, failFast)
+			return runAssertions(args[0], parallel, failFast, inventoryFile, group)
 		},
 	}
 
 	cmd.Flags().IntVarP(&parallel, "parallel", "p", 1, "number of parallel assertions per target")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop on first failure")
+	cmd.Flags().StringVarP(&inventoryFile, "inventory", "i", "", "inventory file (YAML or INI format)")
+	cmd.Flags().StringVarP(&group, "group", "g", "", "run only against hosts in this group")
 
 	return cmd
 }
@@ -129,16 +135,41 @@ func validateCmd() *cobra.Command {
 	}
 }
 
-func runAssertions(path string, parallel int, failFast bool) error {
+func runAssertions(path string, parallel int, failFast bool, inventoryFile, group string) error {
 	af, err := assertion.LoadFile(path)
 	if err != nil {
 		return fmt.Errorf("load assertions: %w", err)
+	}
+
+	// Load inventory if provided
+	var inv *inventory.Inventory
+	if inventoryFile != "" {
+		inv, err = inventory.Load(inventoryFile)
+		if err != nil {
+			return fmt.Errorf("load inventory: %w", err)
+		}
+
+		// Expand group references in assertion file
+		af = expandInventoryGroups(af, inv, group)
 	}
 
 	// Load config (credentials, defaults)
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Apply inventory defaults to config if available
+	if inv != nil && cfg != nil {
+		if cfg.Defaults.Username == "" && inv.Defaults.Username != "" {
+			cfg.Defaults.Username = inv.Defaults.Username
+		}
+		if cfg.Defaults.Password == "" && inv.Defaults.Password != "" {
+			cfg.Defaults.Password = inv.Defaults.Password
+		}
+		if !cfg.Defaults.Insecure && inv.Defaults.Insecure {
+			cfg.Defaults.Insecure = inv.Defaults.Insecure
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -193,6 +224,54 @@ func runAssertions(path string, parallel int, failFast bool) error {
 	}
 
 	return nil
+}
+
+// expandInventoryGroups expands group references in assertion file targets
+func expandInventoryGroups(af *assertion.AssertionFile, inv *inventory.Inventory, filterGroup string) *assertion.AssertionFile {
+	var newTargets []assertion.Target
+
+	for _, target := range af.Targets {
+		// Check if this target references a group (starts with @)
+		if strings.HasPrefix(target.Address, "@") {
+			groupName := strings.TrimPrefix(target.Address, "@")
+			hosts, ok := inv.GetGroup(groupName)
+			if !ok {
+				// Group not found, keep as-is (will fail later with connection error)
+				newTargets = append(newTargets, target)
+				continue
+			}
+
+			// Create a target for each host in the group
+			for _, host := range hosts {
+				newTarget := target
+				newTarget.Address = host
+				newTargets = append(newTargets, newTarget)
+			}
+		} else {
+			newTargets = append(newTargets, target)
+		}
+	}
+
+	// Filter by group if specified
+	if filterGroup != "" {
+		hosts, ok := inv.GetGroup(filterGroup)
+		if ok {
+			hostSet := make(map[string]bool)
+			for _, h := range hosts {
+				hostSet[h] = true
+			}
+
+			var filtered []assertion.Target
+			for _, t := range newTargets {
+				if hostSet[t.Address] {
+					filtered = append(filtered, t)
+				}
+			}
+			newTargets = filtered
+		}
+	}
+
+	return &assertion.AssertionFile{Targets: newTargets}
 }
 
 func generateCmd() *cobra.Command {

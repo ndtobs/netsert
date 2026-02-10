@@ -1,0 +1,20 @@
+# Example inventory file
+# Use with: netsert run -i inventory.yaml assertions.yaml
+
+groups:
+  spines:
+    - clab-netsert-spine1:6030
+
+  leafs:
+    - clab-netsert-leaf1:6030
+    - clab-netsert-leaf2:6030
+
+  # Reference other groups with @
+  all:
+    - "@spines"
+    - "@leafs"
+
+defaults:
+  username: admin
+  password: admin
+  insecure: true
