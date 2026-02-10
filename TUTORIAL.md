@@ -181,7 +181,7 @@ Output:
 # Review and edit as needed
 
 targets:
-    - address: clab-netsert-spine1:6030
+    - host: clab-netsert-spine1:6030
       assertions:
         - name: Ethernet1 is UP
           path: /interfaces/interface[name=Ethernet1]/state/oper-status

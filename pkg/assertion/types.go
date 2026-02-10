@@ -14,11 +14,20 @@ type AssertionFile struct {
 
 // Target represents a device and its assertions
 type Target struct {
-	Address    string      `yaml:"address"`
+	Host       string      `yaml:"host,omitempty"`
+	Address    string      `yaml:"address,omitempty"` // Deprecated: use host
 	Username   string      `yaml:"username,omitempty"`
 	Password   string      `yaml:"password,omitempty"`
 	Insecure   bool        `yaml:"insecure,omitempty"`
 	Assertions []Assertion `yaml:"assertions"`
+}
+
+// GetHost returns the host address (prefers host over address)
+func (t *Target) GetHost() string {
+	if t.Host != "" {
+		return t.Host
+	}
+	return t.Address
 }
 
 // Assertion represents a single state assertion

@@ -51,7 +51,7 @@ func (r *Runner) Run(ctx context.Context, af *assertion.AssertionFile) (*RunResu
 
 		targetResults, err := r.runTarget(ctx, target)
 		if err != nil {
-			return nil, fmt.Errorf("target %s: %w", target.Address, err)
+			return nil, fmt.Errorf("target %s: %w", target.GetHost(), err)
 		}
 		result.Results = append(result.Results, targetResults...)
 	}
@@ -78,7 +78,7 @@ func (r *Runner) applyConfig(target assertion.Target) assertion.Target {
 		return target
 	}
 
-	username, password, insecure := r.Config.GetCredentials(target.Address)
+	username, password, insecure := r.Config.GetCredentials(target.GetHost())
 
 	// Only apply if not already set in assertion file
 	if target.Username == "" {
@@ -97,7 +97,7 @@ func (r *Runner) applyConfig(target assertion.Target) assertion.Target {
 func (r *Runner) runTarget(ctx context.Context, target assertion.Target) ([]*assertion.Result, error) {
 	// Connect to target
 	client, err := gnmiclient.NewClient(gnmiclient.Config{
-		Address:  target.Address,
+		Address:  target.GetHost(),
 		Username: target.Username,
 		Password: target.Password,
 		Insecure: target.Insecure,
@@ -125,7 +125,7 @@ func (r *Runner) runTarget(ctx context.Context, target assertion.Target) ([]*ass
 			defer func() { <-sem }()
 
 			res := r.runAssertion(ctx, client, target, a)
-			res.Target = target.Address
+			res.Target = target.GetHost()
 
 			mu.Lock()
 			results = append(results, res)

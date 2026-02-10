@@ -27,8 +27,8 @@ targets:
 	}
 
 	target := af.Targets[0]
-	if target.Address != "device1:6030" {
-		t.Errorf("Address = %v, want device1:6030", target.Address)
+	if target.GetHost() != "device1:6030" {
+		t.Errorf("GetHost() = %v, want device1:6030", target.GetHost())
 	}
 	if target.Username != "admin" {
 		t.Errorf("Username = %v, want admin", target.Username)
@@ -46,7 +46,7 @@ targets:
 	}
 }
 
-func TestParse_MissingAddress(t *testing.T) {
+func TestParse_MissingHost(t *testing.T) {
 	yaml := `
 targets:
   - username: admin

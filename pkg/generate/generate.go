@@ -73,7 +73,7 @@ func GenerateFile(ctx context.Context, client *gnmiclient.Client, generators []s
 	return &assertion.AssertionFile{
 		Targets: []assertion.Target{
 			{
-				Address:    opts.Target,
+				Host:       opts.Target,
 				Assertions: allAssertions,
 			},
 		},

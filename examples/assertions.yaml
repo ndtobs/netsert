@@ -8,7 +8,7 @@
 
 targets:
   # Spine switch
-  - address: clab-netsert-spine1:6030
+  - host: clab-netsert-spine1:6030
     assertions:
       - name: Spine1 Ethernet1 is UP
         path: /interfaces/interface[name=Ethernet1]/state/oper-status
@@ -23,7 +23,7 @@ targets:
         equals: "spine1"
 
   # Leaf switch
-  - address: clab-netsert-leaf1:6030
+  - host: clab-netsert-leaf1:6030
     assertions:
       - name: Leaf1 uplink is UP
         path: /interfaces/interface[name=Ethernet1]/state/oper-status

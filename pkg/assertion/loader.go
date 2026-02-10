@@ -26,8 +26,8 @@ func Parse(data []byte) (*AssertionFile, error) {
 
 	// Validate
 	for i, target := range af.Targets {
-		if target.Address == "" {
-			return nil, fmt.Errorf("target %d: address is required", i)
+		if target.GetHost() == "" {
+			return nil, fmt.Errorf("target %d: host is required", i)
 		}
 		for j, assertion := range target.Assertions {
 			if assertion.Path == "" {

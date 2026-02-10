@@ -79,10 +79,10 @@ func main() {
 
 func runCmd() *cobra.Command {
 	var (
-		parallel     int
-		failFast     bool
+		parallel      int
+		failFast      bool
 		inventoryFile string
-		group        string
+		group         string
 	)
 
 	cmd := &cobra.Command{
@@ -232,8 +232,8 @@ func expandInventoryGroups(af *assertion.AssertionFile, inv *inventory.Inventory
 
 	for _, target := range af.Targets {
 		// Check if this target references a group (starts with @)
-		if strings.HasPrefix(target.Address, "@") {
-			groupName := strings.TrimPrefix(target.Address, "@")
+		if strings.HasPrefix(target.GetHost(), "@") {
+			groupName := strings.TrimPrefix(target.GetHost(), "@")
 			hosts, ok := inv.GetGroup(groupName)
 			if !ok {
 				// Group not found, keep as-is (will fail later with connection error)
@@ -244,7 +244,8 @@ func expandInventoryGroups(af *assertion.AssertionFile, inv *inventory.Inventory
 			// Create a target for each host in the group
 			for _, host := range hosts {
 				newTarget := target
-				newTarget.Address = host
+				newTarget.Host = host
+				newTarget.Address = "" // Clear deprecated field
 				newTargets = append(newTargets, newTarget)
 			}
 		} else {
@@ -263,7 +264,7 @@ func expandInventoryGroups(af *assertion.AssertionFile, inv *inventory.Inventory
 
 			var filtered []assertion.Target
 			for _, t := range newTargets {
-				if hostSet[t.Address] {
+				if hostSet[t.GetHost()] {
 					filtered = append(filtered, t)
 				}
 			}
