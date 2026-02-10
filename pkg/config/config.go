@@ -9,8 +9,8 @@ import (
 
 // Config holds netsert configuration
 type Config struct {
-	Defaults  Defaults          `yaml:"defaults,omitempty"`
-	Targets   map[string]Target `yaml:"targets,omitempty"`
+	Defaults Defaults          `yaml:"defaults,omitempty"`
+	Targets  map[string]Target `yaml:"targets,omitempty"`
 }
 
 // Defaults holds default settings

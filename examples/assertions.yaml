@@ -1,4 +1,9 @@
 # Example netsert assertions
+# 
+# Prerequisites:
+#   1. Copy netsert.yaml to project root: cp examples/netsert.yaml .
+#   2. Deploy lab: cd examples/lab && sudo containerlab deploy -t topology.yaml
+#
 # Run with: netsert run examples/assertions.yaml
 
 targets:

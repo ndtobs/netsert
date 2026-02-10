@@ -30,28 +30,28 @@ var (
 
 // JSONOutput is the structure for JSON output
 type JSONOutput struct {
-	Summary   JSONSummary    `json:"summary"`
-	Results   []JSONResult   `json:"results"`
+	Summary JSONSummary  `json:"summary"`
+	Results []JSONResult `json:"results"`
 }
 
 type JSONSummary struct {
-	File     string  `json:"file"`
-	Total    int     `json:"total"`
-	Passed   int     `json:"passed"`
-	Failed   int     `json:"failed"`
-	Errors   int     `json:"errors"`
-	Duration string  `json:"duration"`
-	Success  bool    `json:"success"`
+	File     string `json:"file"`
+	Total    int    `json:"total"`
+	Passed   int    `json:"passed"`
+	Failed   int    `json:"failed"`
+	Errors   int    `json:"errors"`
+	Duration string `json:"duration"`
+	Success  bool   `json:"success"`
 }
 
 type JSONResult struct {
-	Target      string `json:"target"`
-	Name        string `json:"name"`
-	Path        string `json:"path"`
-	Status      string `json:"status"` // "pass", "fail", "error"
-	Actual      string `json:"actual,omitempty"`
-	Expected    string `json:"expected,omitempty"`
-	Error       string `json:"error,omitempty"`
+	Target   string `json:"target"`
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	Status   string `json:"status"` // "pass", "fail", "error"
+	Actual   string `json:"actual,omitempty"`
+	Expected string `json:"expected,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 func main() {

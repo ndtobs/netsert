@@ -17,3 +17,9 @@ clab-*/
 
 # Test
 coverage.out
+
+# Config files (may contain credentials)
+/netsert.yaml
+/.netsert.yaml
+/baseline.yaml
+*.generated.yaml

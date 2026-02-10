@@ -55,11 +55,11 @@ func TestSplitPath(t *testing.T) {
 
 func TestParsePathElem(t *testing.T) {
 	tests := []struct {
-		name    string
-		segment string
+		name     string
+		segment  string
 		wantName string
 		wantKeys map[string]string
-		wantErr bool
+		wantErr  bool
 	}{
 		{
 			"simple",
