@@ -1,0 +1,13 @@
+# Example netsert config file
+# Copy to ~/.netsert.yaml or ./netsert.yaml
+
+defaults:
+  username: admin
+  password: admin
+  insecure: true  # Skip TLS verification (use only in lab!)
+
+# Per-target overrides (optional)
+# targets:
+#   "prod-switch1:6030":
+#     username: readonly
+#     password: secure-password

@@ -57,33 +57,43 @@ sudo mv netsert /usr/local/bin/
 
 ## Quick Start
 
-### 1. Create a config file for credentials
+### 1. Build
+
+```bash
+git clone https://github.com/ndtobs/netsert.git
+cd netsert
+go build -o netsert ./cmd/netsert
+```
+
+### 2. Set up credentials
+
+```bash
+# Copy example config to current directory
+cp examples/netsert.yaml .
+```
+
+This creates a config file with default credentials:
 
 ```yaml
-# ~/.netsert.yaml
 defaults:
   username: admin
   password: admin
   insecure: true  # Skip TLS verification (lab only!)
 ```
 
-### 2. Create an assertion file
-
-```yaml
-# my-assertions.yaml
-targets:
-  - address: switch1.lab:6030
-    assertions:
-      - name: Uplink is UP
-        path: /interfaces/interface[name=Ethernet1]/state/oper-status
-        equals: "UP"
-```
-
-### 3. Run it
+### 3. Generate assertions from a live device
 
 ```bash
-netsert run my-assertions.yaml
+./netsert generate spine1:6030 -f baseline.yaml
 ```
+
+### 4. Run assertions
+
+```bash
+./netsert run baseline.yaml
+```
+
+> **📘 Full Tutorial:** See [TUTORIAL.md](TUTORIAL.md) for a complete hands-on walkthrough with Containerlab.
 
 ## Commands
 
