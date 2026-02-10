@@ -1,0 +1,13 @@
+# netsert config file
+# Loaded from: ./netsert.yaml, ~/.netsert.yaml, or ~/.config/netsert/config.yaml
+
+defaults:
+  username: admin
+  password: admin
+  insecure: true
+
+# Override per target (optional)
+# targets:
+#   "spine1:6030":
+#     username: operator
+#     password: different-password

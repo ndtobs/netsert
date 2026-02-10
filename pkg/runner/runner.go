@@ -8,15 +8,17 @@ import (
 	"time"
 
 	"github.com/ndtobs/netsert/pkg/assertion"
+	"github.com/ndtobs/netsert/pkg/config"
 	"github.com/ndtobs/netsert/pkg/gnmiclient"
 )
 
 // Runner executes assertions against targets
 type Runner struct {
-	Output    io.Writer
-	Timeout   time.Duration
-	Parallel  int
-	Verbose   bool
+	Output   io.Writer
+	Timeout  time.Duration
+	Parallel int
+	Verbose  bool
+	Config   *config.Config
 }
 
 // RunResult contains the results of a run
@@ -44,6 +46,9 @@ func (r *Runner) Run(ctx context.Context, af *assertion.AssertionFile) (*RunResu
 	result := &RunResult{}
 
 	for _, target := range af.Targets {
+		// Apply config credentials if not specified in assertion file
+		target = r.applyConfig(target)
+
 		targetResults, err := r.runTarget(ctx, target)
 		if err != nil {
 			return nil, fmt.Errorf("target %s: %w", target.Address, err)
@@ -65,6 +70,28 @@ func (r *Runner) Run(ctx context.Context, af *assertion.AssertionFile) (*RunResu
 
 	result.Duration = time.Since(start)
 	return result, nil
+}
+
+// applyConfig merges config settings into target (assertion file takes precedence)
+func (r *Runner) applyConfig(target assertion.Target) assertion.Target {
+	if r.Config == nil {
+		return target
+	}
+
+	username, password, insecure := r.Config.GetCredentials(target.Address)
+
+	// Only apply if not already set in assertion file
+	if target.Username == "" {
+		target.Username = username
+	}
+	if target.Password == "" {
+		target.Password = password
+	}
+	if !target.Insecure {
+		target.Insecure = insecure
+	}
+
+	return target
 }
 
 func (r *Runner) runTarget(ctx context.Context, target assertion.Target) ([]*assertion.Result, error) {

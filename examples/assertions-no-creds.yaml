@@ -1,0 +1,14 @@
+# Assertions without credentials - uses config file
+targets:
+  - address: clab-netsert-spine1:6030
+    # No username/password - will use config file
+    assertions:
+      - name: Ethernet1 is UP
+        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        equals: "UP"
+
+  - address: clab-netsert-leaf1:6030
+    assertions:
+      - name: Ethernet1 is UP
+        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        equals: "UP"

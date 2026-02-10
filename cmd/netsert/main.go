@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ndtobs/netsert/pkg/assertion"
+	"github.com/ndtobs/netsert/pkg/config"
 	"github.com/ndtobs/netsert/pkg/runner"
 	"github.com/spf13/cobra"
 )
@@ -129,6 +130,12 @@ func runAssertions(path string, parallel int, failFast bool) error {
 		return fmt.Errorf("load assertions: %w", err)
 	}
 
+	// Load config (credentials, defaults)
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -151,6 +158,7 @@ func runAssertions(path string, parallel int, failFast bool) error {
 	r.Timeout = timeout
 	r.Parallel = parallel
 	r.Verbose = verbose
+	r.Config = cfg
 
 	if output != "json" {
 		fmt.Printf("Running assertions from %s\n\n", path)
