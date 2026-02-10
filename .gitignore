@@ -1,5 +1,5 @@
-# Binaries
-netsert
+# Binaries (root level only)
+/netsert
 *.exe
 dist/
 
