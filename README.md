@@ -89,7 +89,7 @@ targets:
         equals: ESTABLISHED
 ```
 
-netsert pulls the config and creates the assertion automatically from the device's current state.  
+netsert polls the device to create the assertion automatically from the device's current state.  
 
 Available generators: `interfaces`, `bgp`, `ospf`, `lldp`, `system`
 
