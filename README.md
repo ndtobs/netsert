@@ -1,6 +1,16 @@
-# netsert
+<p align="center">
+  <img src="assets/logo.svg" alt="netsert logo" width="300">
+</p>
 
-Define what your network *should* look like. netsert tells you if it *does*.
+<p align="center">
+  <strong>Define what your network <em>should</em> look like. netsert tells you if it <em>does</em>.</strong>
+</p>
+
+<p align="center">
+  Network testing for the GitOps era. Write assertions as YAML, run them against live devices via gNMI, and catch misconfigurations before they become outages. Fast, declarative, and built for CI/CD pipelines.
+</p>
+
+---
 
 ```yaml
 targets:
@@ -61,25 +71,6 @@ cp examples/netsert.yaml .
 ./netsert run baseline.yaml
 ```
 
-## Short Paths
-
-OpenConfig paths can be verbose. netsert supports a **short path format** that expands automatically:
-
-| Short Path | Expands To |
-|------------|------------|
-| `bgp[default]/neighbors/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/...` |
-| `bgp[customer-a]/...` | `/network-instances/network-instance[name=customer-a]/protocols/protocol[identifier=BGP][name=BGP]/bgp/...` |
-| `interface[Ethernet1]/...` | `/interfaces/interface[name=Ethernet1]/...` |
-| `ospf[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=OSPF][name=OSPF]/ospf/...` |
-| `isis[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=ISIS][name=ISIS]/isis/...` |
-| `system/...` | `/system/...` |
-| `lldp/...` | `/lldp/...` |
-| `network-instance[mgmt]/...` | `/network-instances/network-instance[name=mgmt]/...` |
-
-**The rule**: Paths starting with `/` are absolute (used as-is). Paths without a leading `/` are short paths that get expanded.
-
-Full OpenConfig paths always work — short paths are optional convenience.
-
 ## Generate Assertions from Live Devices
 
 Don't write assertions by hand — generate them from current state:
@@ -97,6 +88,8 @@ targets:
         path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
         equals: ESTABLISHED
 ```
+
+netsert pulls the config and creates the assertion automatically from the device's current state.  
 
 Available generators: `interfaces`, `bgp` (more coming)
 
@@ -153,12 +146,24 @@ validate:
   run: netsert run -o json assertions.yaml > results.json
 ```
 
-**How it catches bad changes:**
-1. Engineer pushes config change in PR
-2. CI deploys to lab/staging
-3. netsert runs assertions against devices
-4. If BGP goes down, interface breaks, etc. → exit 1 → pipeline fails
-5. Merge blocked until fix pushed
+## Short Paths
+
+OpenConfig paths can be verbose. netsert supports a **short path format** that expands automatically:
+
+| Short Path | Expands To |
+|------------|------------|
+| `bgp[default]/neighbors/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/...` |
+| `bgp[customer-a]/...` | `/network-instances/network-instance[name=customer-a]/protocols/protocol[identifier=BGP][name=BGP]/bgp/...` |
+| `interface[Ethernet1]/...` | `/interfaces/interface[name=Ethernet1]/...` |
+| `ospf[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=OSPF][name=OSPF]/ospf/...` |
+| `isis[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=ISIS][name=ISIS]/isis/...` |
+| `system/...` | `/system/...` |
+| `lldp/...` | `/lldp/...` |
+| `network-instance[mgmt]/...` | `/network-instances/network-instance[name=mgmt]/...` |
+
+**The rule**: Paths starting with `/` are absolute (used as-is). Paths without a leading `/` are short paths that get expanded.
+
+Full OpenConfig paths always work — short paths are optional convenience.
 
 ## Commands
 
