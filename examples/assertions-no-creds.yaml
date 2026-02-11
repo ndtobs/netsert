@@ -4,11 +4,11 @@ targets:
     # No username/password - will use config file
     assertions:
       - name: Ethernet1 is UP
-        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        path: interface[Ethernet1]/state/oper-status
         equals: "UP"
 
   - host: clab-netsert-leaf1:6030
     assertions:
       - name: Ethernet1 is UP
-        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        path: interface[Ethernet1]/state/oper-status
         equals: "UP"

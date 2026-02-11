@@ -5,30 +5,50 @@
 #   2. Deploy lab: cd examples/lab && sudo containerlab deploy -t topology.yaml
 #
 # Run with: netsert run examples/assertions.yaml
+#
+# Path formats:
+#   - Short paths (no leading /): Expanded automatically to full OpenConfig paths
+#   - Full paths (leading /): Used as-is, no expansion
+#
+# Short path prefixes:
+#   bgp[<vrf>]/...           -> /network-instances/network-instance[name=<vrf>]/protocols/protocol[identifier=BGP][name=BGP]/bgp/...
+#   ospf[<vrf>]/...          -> /network-instances/network-instance[name=<vrf>]/protocols/protocol[identifier=OSPF][name=OSPF]/ospf/...
+#   isis[<vrf>]/...          -> /network-instances/network-instance[name=<vrf>]/protocols/protocol[identifier=ISIS][name=ISIS]/isis/...
+#   interface[<name>]/...    -> /interfaces/interface[name=<name>]/...
+#   network-instance[<n>]/...-> /network-instances/network-instance[name=<n>]/...
+#   system/...               -> /system/...
+#   lldp/...                 -> /lldp/...
 
 targets:
   # Spine switch
   - host: clab-netsert-spine1:6030
     assertions:
+      # Short path format (recommended)
       - name: Spine1 Ethernet1 is UP
-        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        path: interface[Ethernet1]/state/oper-status
         equals: "UP"
 
       - name: Spine1 Ethernet2 is UP
-        path: /interfaces/interface[name=Ethernet2]/state/oper-status
+        path: interface[Ethernet2]/state/oper-status
         equals: "UP"
 
       - name: Spine1 hostname is correct
-        path: /system/config/hostname
+        path: system/config/hostname
         equals: "spine1"
 
   # Leaf switch
   - host: clab-netsert-leaf1:6030
     assertions:
+      # Short path format
       - name: Leaf1 uplink is UP
-        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        path: interface[Ethernet1]/state/oper-status
         equals: "UP"
 
       - name: Leaf1 hostname is correct
-        path: /system/config/hostname
+        path: system/config/hostname
         equals: "leaf1"
+
+      # Full path format (also works)
+      - name: Leaf1 Loopback0 exists
+        path: /interfaces/interface[name=Loopback0]/state/oper-status
+        equals: "UP"

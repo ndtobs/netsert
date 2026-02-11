@@ -7,11 +7,11 @@ targets:
   - host: spine1:6030
     assertions:
       - name: Ethernet1 is UP
-        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        path: interface[Ethernet1]/state/oper-status
         equals: "UP"
 
       - name: BGP peer established
-        path: /network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
+        path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
         equals: "ESTABLISHED"
 ```
 
@@ -61,6 +61,25 @@ cp examples/netsert.yaml .
 ./netsert run baseline.yaml
 ```
 
+## Short Paths
+
+OpenConfig paths can be verbose. netsert supports a **short path format** that expands automatically:
+
+| Short Path | Expands To |
+|------------|------------|
+| `bgp[default]/neighbors/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/...` |
+| `bgp[customer-a]/...` | `/network-instances/network-instance[name=customer-a]/protocols/protocol[identifier=BGP][name=BGP]/bgp/...` |
+| `interface[Ethernet1]/...` | `/interfaces/interface[name=Ethernet1]/...` |
+| `ospf[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=OSPF][name=OSPF]/ospf/...` |
+| `isis[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=ISIS][name=ISIS]/isis/...` |
+| `system/...` | `/system/...` |
+| `lldp/...` | `/lldp/...` |
+| `network-instance[mgmt]/...` | `/network-instances/network-instance[name=mgmt]/...` |
+
+**The rule**: Paths starting with `/` are absolute (used as-is). Paths without a leading `/` are short paths that get expanded.
+
+Full OpenConfig paths always work — short paths are optional convenience.
+
 ## Generate Assertions from Live Devices
 
 Don't write assertions by hand — generate them from current state:
@@ -72,10 +91,10 @@ targets:
   - host: spine1:6030
     assertions:
       - name: Ethernet1 is UP
-        path: /interfaces/interface[name=Ethernet1]/state/oper-status
+        path: interface[Ethernet1]/state/oper-status
         equals: UP
       - name: BGP peer 10.0.0.2 is ESTABLISHED
-        path: /network-instances/.../neighbor[neighbor-address=10.0.0.2]/state/session-state
+        path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
         equals: ESTABLISHED
 ```
 

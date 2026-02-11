@@ -50,7 +50,8 @@ func (g *InterfacesGenerator) Generate(ctx context.Context, client *gnmiclient.C
 		}
 
 		name := fmt.Sprintf("%s is %s", iface.Name, iface.OperStatus)
-		path := fmt.Sprintf("/interfaces/interface[name=%s]/state/oper-status", iface.Name)
+		// Use short path format - will be expanded at load time
+		path := fmt.Sprintf("interface[%s]/state/oper-status", iface.Name)
 
 		assertions = append(assertions, assertion.Assertion{
 			Name:   name,

@@ -24,7 +24,7 @@ func Parse(data []byte) (*AssertionFile, error) {
 		return nil, fmt.Errorf("parsing YAML: %w", err)
 	}
 
-	// Validate
+	// Validate and expand paths
 	for i, target := range af.Targets {
 		if target.GetHost() == "" {
 			return nil, fmt.Errorf("target %d: host is required", i)
@@ -33,6 +33,8 @@ func Parse(data []byte) (*AssertionFile, error) {
 			if assertion.Path == "" {
 				return nil, fmt.Errorf("target %d, assertion %d: path is required", i, j)
 			}
+			// Expand short paths to full OpenConfig paths
+			af.Targets[i].Assertions[j].Path = ExpandPath(assertion.Path)
 		}
 	}
 

@@ -47,7 +47,8 @@ func (g *BGPGenerator) Generate(ctx context.Context, client *gnmiclient.Client, 
 		// Users can edit the file to add assertions for non-established peers
 		name := fmt.Sprintf("BGP peer %s is %s", n.NeighborAddress, n.SessionState)
 
-		path := fmt.Sprintf("/network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/neighbor[neighbor-address=%s]/state/session-state", n.NeighborAddress)
+		// Use short path format - will be expanded at load time
+		path := fmt.Sprintf("bgp[default]/neighbors/neighbor[neighbor-address=%s]/state/session-state", n.NeighborAddress)
 
 		assertions = append(assertions, assertion.Assertion{
 			Name:   name,

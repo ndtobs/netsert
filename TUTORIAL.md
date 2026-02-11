@@ -106,7 +106,7 @@ You should see three containers running.
 Before writing assertions, explore what data is available:
 
 ```bash
-# Check hostname
+# Check hostname (full path)
 ./netsert get clab-netsert-spine1:6030 /system/config/hostname
 ```
 
@@ -117,7 +117,7 @@ Value: spine1
 ```
 
 ```bash
-# Check interface status
+# Check interface status (full path)
 ./netsert get clab-netsert-spine1:6030 /interfaces/interface[name=Ethernet1]/state/oper-status
 ```
 
@@ -131,6 +131,8 @@ Value: UP
 # Get full interface state as JSON (great for discovering paths)
 ./netsert get -o json clab-netsert-spine1:6030 /interfaces/interface[name=Ethernet1]/state
 ```
+
+> **Note:** The `get` command uses full OpenConfig paths. When writing assertions, you can use [short paths](#short-paths) for convenience.
 
 ---
 
@@ -184,18 +186,20 @@ targets:
     - host: clab-netsert-spine1:6030
       assertions:
         - name: Ethernet1 is UP
-          path: /interfaces/interface[name=Ethernet1]/state/oper-status
+          path: interface[Ethernet1]/state/oper-status
           equals: UP
         - name: Ethernet2 is UP
-          path: /interfaces/interface[name=Ethernet2]/state/oper-status
+          path: interface[Ethernet2]/state/oper-status
           equals: UP
         - name: BGP peer 10.0.1.2 is ESTABLISHED
-          path: /network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/neighbor[neighbor-address=10.0.1.2]/state/session-state
+          path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.1.2]/state/session-state
           equals: ESTABLISHED
         - name: BGP peer 10.0.2.2 is ESTABLISHED
-          path: /network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/neighbor[neighbor-address=10.0.2.2]/state/session-state
+          path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.2.2]/state/session-state
           equals: ESTABLISHED
 ```
+
+> **Note:** Generated paths use the [short path format](README.md#short-paths) for readability. They expand automatically to full OpenConfig paths at runtime.
 
 Save to a file:
 
