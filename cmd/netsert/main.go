@@ -138,25 +138,48 @@ func validateCmd() *cobra.Command {
 }
 
 func runAssertions(path string, workers, parallel int, failFast bool, inventoryFile, group string) error {
-	// Validate: -g requires -i
-	if group != "" && inventoryFile == "" {
-		return fmt.Errorf("--group/-g requires --inventory/-i to be specified")
-	}
-
 	af, err := assertion.LoadFile(path)
 	if err != nil {
 		return fmt.Errorf("load assertions: %w", err)
 	}
 
-	// Load inventory if provided
+	// Check if assertion file contains @group references
+	hasGroupRefs := false
+	for _, target := range af.Targets {
+		if strings.HasPrefix(target.GetHost(), "@") {
+			hasGroupRefs = true
+			break
+		}
+	}
+
+	// Load inventory
 	var inv *inventory.Inventory
 	if inventoryFile != "" {
+		// Explicit inventory file provided
 		inv, err = inventory.Load(inventoryFile)
 		if err != nil {
 			return fmt.Errorf("load inventory: %w", err)
 		}
+	} else if hasGroupRefs || group != "" {
+		// Auto-discover inventory if @group refs found or -g flag used
+		var invPath string
+		inv, invPath, err = inventory.AutoDiscover()
+		if err != nil {
+			return fmt.Errorf("auto-discover inventory: %w", err)
+		}
+		if inv == nil {
+			if hasGroupRefs {
+				return fmt.Errorf("assertion file contains @group references but no inventory found - create inventory.yaml or pass -i")
+			}
+			return fmt.Errorf("--group/-g requires an inventory file - create inventory.yaml or pass -i")
+		}
+		if output != "json" {
+			fmt.Printf("Using inventory: %s\n", invPath)
+		}
+	}
 
-		// Expand group references in assertion file
+	// Expand group references if inventory is available
+	if inv != nil {
 		af = expandInventoryGroups(af, inv, group)
 
 		// Check if filtering resulted in no targets

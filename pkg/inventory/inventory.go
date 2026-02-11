@@ -24,6 +24,38 @@ type Defaults struct {
 	Port     int    `yaml:"port,omitempty"`
 }
 
+// DefaultPaths are the standard locations to look for inventory files
+var DefaultPaths = []string{
+	"inventory.yaml",
+	"inventory.yml",
+	"inventory.ini",
+	"inventory",
+	"hosts",
+	"hosts.yaml",
+	"hosts.yml",
+}
+
+// Discover tries to find and load an inventory file from standard locations
+func Discover() (*Inventory, error) {
+	for _, path := range DefaultPaths {
+		if _, err := os.Stat(path); err == nil {
+			return Load(path)
+		}
+	}
+	return nil, fmt.Errorf("no inventory file found (tried: %s)", strings.Join(DefaultPaths, ", "))
+}
+
+// Standard inventory file locations (checked in order)
+var defaultInventoryPaths = []string{
+	"inventory.yaml",
+	"inventory.yml",
+	"inventory.ini",
+	"inventory",
+	"hosts.yaml",
+	"hosts.yml",
+	"hosts",
+}
+
 // Load loads inventory from a file, auto-detecting format
 func Load(path string) (*Inventory, error) {
 	data, err := os.ReadFile(path)
@@ -44,6 +76,19 @@ func Load(path string) (*Inventory, error) {
 	}
 
 	return nil, fmt.Errorf("unable to parse inventory (tried YAML and INI)")
+}
+
+// AutoDiscover tries to find and load inventory from standard locations
+func AutoDiscover() (*Inventory, string, error) {
+	for _, path := range defaultInventoryPaths {
+		if _, err := os.Stat(path); err == nil {
+			inv, err := Load(path)
+			if err == nil {
+				return inv, path, nil
+			}
+		}
+	}
+	return nil, "", nil // No inventory found (not an error)
 }
 
 // ParseYAML parses YAML inventory format
