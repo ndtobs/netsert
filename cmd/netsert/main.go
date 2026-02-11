@@ -143,6 +143,9 @@ func runAssertions(path string, workers, parallel int, failFast bool, inventoryF
 		return fmt.Errorf("load assertions: %w", err)
 	}
 
+	// Normalize group name (strip @ prefix if present)
+	group = strings.TrimPrefix(group, "@")
+
 	// Check if assertion file contains @group references
 	hasGroupRefs := false
 	for _, target := range af.Targets {
@@ -362,35 +365,54 @@ Examples:
 }
 
 func runGenerate(target string, generators []string, username, password string, insecure bool, outFile, inventoryFile string) error {
-	// Expand @group targets
+	// Expand group targets (with or without @ prefix)
 	var targets []string
-	if strings.HasPrefix(target, "@") {
-		groupName := strings.TrimPrefix(target, "@")
 
-		// Load inventory
+	// Strip @ prefix if present
+	groupName := strings.TrimPrefix(target, "@")
+	hasAtPrefix := strings.HasPrefix(target, "@")
+
+	// Check if this could be a group (has @ prefix OR no port)
+	couldBeGroup := hasAtPrefix || !strings.Contains(target, ":")
+
+	if couldBeGroup {
+		// Try to load inventory and look up group
 		var inv *inventory.Inventory
 		var err error
 		if inventoryFile != "" {
 			inv, err = inventory.Load(inventoryFile)
+			if err != nil {
+				return fmt.Errorf("load inventory: %w", err)
+			}
 		} else {
 			inv, _, err = inventory.AutoDiscover()
-		}
-		if err != nil {
-			return fmt.Errorf("load inventory: %w", err)
-		}
-		if inv == nil {
-			return fmt.Errorf("target %s requires inventory - create inventory.yaml or pass -i", target)
+			if err != nil {
+				return fmt.Errorf("auto-discover inventory: %w", err)
+			}
 		}
 
-		hosts, ok := inv.GetGroup(groupName)
-		if !ok {
-			return fmt.Errorf("group %q not found in inventory", groupName)
+		// If we have inventory, try to find the group
+		if inv != nil {
+			hosts, ok := inv.GetGroup(groupName)
+			if ok && len(hosts) > 0 {
+				targets = hosts
+			}
 		}
-		if len(hosts) == 0 {
-			return fmt.Errorf("group %q is empty", groupName)
+
+		// If no targets found from inventory
+		if len(targets) == 0 {
+			if hasAtPrefix {
+				// Explicit @ prefix but group not found
+				if inv == nil {
+					return fmt.Errorf("target %s requires inventory - create inventory.yaml or pass -i", target)
+				}
+				return fmt.Errorf("group %q not found in inventory", groupName)
+			}
+			// No @ prefix, treat as host
+			targets = []string{target}
 		}
-		targets = hosts
 	} else {
+		// Has port, definitely a host
 		targets = []string{target}
 	}
 
