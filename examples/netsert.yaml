@@ -5,6 +5,8 @@ defaults:
   username: admin
   password: admin
   insecure: true  # Skip TLS verification (use only in lab!)
+  workers: 10     # Concurrent targets (devices)
+  parallel: 5     # Concurrent assertions per target
 
 # Per-target overrides (optional)
 # targets:

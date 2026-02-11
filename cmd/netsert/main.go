@@ -79,6 +79,7 @@ func main() {
 
 func runCmd() *cobra.Command {
 	var (
+		workers       int
 		parallel      int
 		failFast      bool
 		inventoryFile string
@@ -90,11 +91,12 @@ func runCmd() *cobra.Command {
 		Short: "Run assertions against targets",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAssertions(args[0], parallel, failFast, inventoryFile, group)
+			return runAssertions(args[0], workers, parallel, failFast, inventoryFile, group)
 		},
 	}
 
-	cmd.Flags().IntVarP(&parallel, "parallel", "p", 1, "number of parallel assertions per target")
+	cmd.Flags().IntVarP(&workers, "workers", "w", runner.DefaultWorkers, "number of concurrent targets")
+	cmd.Flags().IntVarP(&parallel, "parallel", "p", runner.DefaultParallel, "number of parallel assertions per target")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop on first failure")
 	cmd.Flags().StringVarP(&inventoryFile, "inventory", "i", "", "inventory file (YAML or INI format)")
 	cmd.Flags().StringVarP(&group, "group", "g", "", "run only against hosts in this group")
@@ -135,7 +137,7 @@ func validateCmd() *cobra.Command {
 	}
 }
 
-func runAssertions(path string, parallel int, failFast bool, inventoryFile, group string) error {
+func runAssertions(path string, workers, parallel int, failFast bool, inventoryFile, group string) error {
 	af, err := assertion.LoadFile(path)
 	if err != nil {
 		return fmt.Errorf("load assertions: %w", err)
@@ -192,6 +194,7 @@ func runAssertions(path string, parallel int, failFast bool, inventoryFile, grou
 
 	r := runner.NewRunner(runnerOutput)
 	r.Timeout = timeout
+	r.Workers = workers
 	r.Parallel = parallel
 	r.Verbose = verbose
 	r.Config = cfg

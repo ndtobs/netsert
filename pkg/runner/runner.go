@@ -12,11 +12,18 @@ import (
 	"github.com/ndtobs/netsert/pkg/gnmiclient"
 )
 
+// Default concurrency settings
+const (
+	DefaultWorkers  = 10 // Concurrent targets
+	DefaultParallel = 5  // Concurrent assertions per target
+)
+
 // Runner executes assertions against targets
 type Runner struct {
 	Output   io.Writer
 	Timeout  time.Duration
-	Parallel int
+	Workers  int  // Concurrent targets
+	Parallel int  // Concurrent assertions per target
 	Verbose  bool
 	Config   *config.Config
 }
@@ -36,7 +43,8 @@ func NewRunner(output io.Writer) *Runner {
 	return &Runner{
 		Output:   output,
 		Timeout:  30 * time.Second,
-		Parallel: 1,
+		Workers:  DefaultWorkers,
+		Parallel: DefaultParallel,
 	}
 }
 
@@ -45,16 +53,52 @@ func (r *Runner) Run(ctx context.Context, af *assertion.AssertionFile) (*RunResu
 	start := time.Now()
 	result := &RunResult{}
 
-	for _, target := range af.Targets {
-		// Apply config credentials if not specified in assertion file
-		target = r.applyConfig(target)
+	var allResults []*assertion.Result
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
-		targetResults, err := r.runTarget(ctx, target)
-		if err != nil {
-			return nil, fmt.Errorf("target %s: %w", target.GetHost(), err)
-		}
-		result.Results = append(result.Results, targetResults...)
+	// Semaphore for target-level concurrency
+	workers := max(r.Workers, 1)
+	sem := make(chan struct{}, workers)
+
+	// Process targets concurrently
+	errChan := make(chan error, len(af.Targets))
+
+	for _, target := range af.Targets {
+		wg.Add(1)
+		target := target // capture
+
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			// Apply config credentials if not specified in assertion file
+			target = r.applyConfig(target)
+
+			targetResults, err := r.runTarget(ctx, target)
+			if err != nil {
+				errChan <- fmt.Errorf("target %s: %w", target.GetHost(), err)
+				return
+			}
+
+			mu.Lock()
+			allResults = append(allResults, targetResults...)
+			mu.Unlock()
+		}()
 	}
+
+	wg.Wait()
+	close(errChan)
+
+	// Check for errors
+	for err := range errChan {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	result.Results = allResults
 
 	// Tally results
 	for _, res := range result.Results {
@@ -111,8 +155,9 @@ func (r *Runner) runTarget(ctx context.Context, target assertion.Target) ([]*ass
 	var results []*assertion.Result
 	var mu sync.Mutex
 
-	// Run assertions
-	sem := make(chan struct{}, max(r.Parallel, 1))
+	// Run assertions with parallelism
+	parallel := max(r.Parallel, 1)
+	sem := make(chan struct{}, parallel)
 	var wg sync.WaitGroup
 
 	for _, a := range target.Assertions {

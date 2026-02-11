@@ -146,6 +146,33 @@ validate:
   run: netsert run -o json assertions.yaml > results.json
 ```
 
+## Concurrency
+
+netsert processes targets and assertions in parallel for speed:
+
+```bash
+netsert run -w 10 -p 5 assertions.yaml
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-w, --workers` | 10 | Concurrent targets (devices) |
+| `-p, --parallel` | 5 | Concurrent assertions per target |
+
+**Example:** 100 devices × 20 assertions each
+- 10 devices processed at a time
+- 5 assertions per device running concurrently
+- Total: ~10 batches instead of 100 sequential connections
+
+Set in config file for permanent defaults:
+
+```yaml
+# netsert.yaml
+defaults:
+  workers: 10
+  parallel: 5
+```
+
 ## Short Paths
 
 OpenConfig paths can be verbose. netsert supports a **short path format** that expands automatically:

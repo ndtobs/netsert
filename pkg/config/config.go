@@ -19,6 +19,8 @@ type Defaults struct {
 	Password string `yaml:"password,omitempty"`
 	Insecure bool   `yaml:"insecure,omitempty"`
 	Timeout  string `yaml:"timeout,omitempty"`
+	Workers  int    `yaml:"workers,omitempty"`  // Concurrent targets (default: 10)
+	Parallel int    `yaml:"parallel,omitempty"` // Concurrent assertions per target (default: 5)
 }
 
 // Target holds per-target settings (keyed by address or pattern)
