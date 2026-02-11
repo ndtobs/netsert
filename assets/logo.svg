@@ -1,24 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40">
-  <!-- [✓] netsert -->
-  
-  <!-- Background -->
-  <rect x="0" y="0" width="180" height="40" rx="6" fill="#0f172a"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 36">
+  <!-- Clean minimalist logo: [✓] netsert -->
   
   <!-- [ bracket -->
-  <path d="M12 8 L12 32 M12 8 L20 8 M12 32 L20 32" stroke="#64748b" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M4 6 L4 30 M4 6 L10 6 M4 30 L10 30" stroke="#999" stroke-width="2" fill="none" stroke-linecap="round"/>
   
   <!-- ✓ checkmark -->
-  <path d="M28 20 L34 26 L46 12" stroke="#22c55e" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16 18 L21 23 L31 11" stroke="#2a2" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
   
   <!-- ] bracket -->
-  <path d="M58 8 L58 32 M50 8 L58 8 M50 32 L58 32" stroke="#64748b" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M40 6 L40 30 M34 6 L40 6 M34 30 L40 30" stroke="#999" stroke-width="2" fill="none" stroke-linecap="round"/>
   
-  <!-- "netsert" as individual letters -->
-  <text x="75" y="28" font-family="monospace" font-size="22" font-weight="600" fill="#e2e8f0">n</text>
-  <text x="88" y="28" font-family="monospace" font-size="22" font-weight="600" fill="#e2e8f0">e</text>
-  <text x="101" y="28" font-family="monospace" font-size="22" font-weight="600" fill="#e2e8f0">t</text>
-  <text x="114" y="28" font-family="monospace" font-size="22" font-weight="600" fill="#e2e8f0">s</text>
-  <text x="127" y="28" font-family="monospace" font-size="22" font-weight="600" fill="#e2e8f0">e</text>
-  <text x="140" y="28" font-family="monospace" font-size="22" font-weight="600" fill="#e2e8f0">r</text>
-  <text x="153" y="28" font-family="monospace" font-size="22" font-weight="600" fill="#e2e8f0">t</text>
+  <!-- netsert text -->
+  <text x="52" y="24" font-family="'IBM Plex Mono', monospace" font-size="18" font-weight="500" fill="#1a1a1a">netsert</text>
 </svg>

@@ -1,7 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Square icon version of v3 terminal style -->
-  <rect width="64" height="64" rx="12" fill="#0f172a"/>
-  <text x="12" y="44" font-family="Monaco, 'Courier New', monospace" font-size="28" fill="#64748b">[</text>
-  <text x="26" y="44" font-family="Monaco, 'Courier New', monospace" font-size="28" fill="#22c55e">✓</text>
-  <text x="43" y="44" font-family="Monaco, 'Courier New', monospace" font-size="28" fill="#64748b">]</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Clean minimalist icon: [✓] -->
+  
+  <!-- [ bracket -->
+  <path d="M8 8 L8 40 M8 8 L16 8 M8 40 L16 40" stroke="#999" stroke-width="3" fill="none" stroke-linecap="round"/>
+  
+  <!-- ✓ checkmark -->
+  <path d="M18 24 L23 29 L34 16" stroke="#2a2" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- ] bracket -->
+  <path d="M40 8 L40 40 M32 8 L40 8 M32 40 L40 40" stroke="#999" stroke-width="3" fill="none" stroke-linecap="round"/>
 </svg>
