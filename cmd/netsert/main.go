@@ -316,17 +316,20 @@ func expandInventoryGroups(af *assertion.AssertionFile, inv *inventory.Inventory
 
 func generateCmd() *cobra.Command {
 	var (
-		username   string
-		password   string
-		insecure   bool
-		generators []string
-		outFile    string
+		username      string
+		password      string
+		insecure      bool
+		generators    []string
+		outFile       string
+		inventoryFile string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "generate <target>",
 		Short: "Generate assertions from current device state",
 		Long: `Query a device and generate assertion YAML from its current state.
+
+Target can be a single host or @group to generate for all hosts in a group.
 
 Available generators:
   bgp         - BGP neighbor session states
@@ -338,11 +341,13 @@ Available generators:
 Examples:
   netsert generate spine1:6030 --gen bgp
   netsert generate spine1:6030 --gen bgp --gen interfaces
-  netsert generate spine1:6030 --gen bgp -f assertions.yaml
-  netsert generate spine1:6030  # All generators`,
+  netsert generate spine1:6030 -f assertions.yaml
+  netsert generate spine1:6030  # All generators
+  netsert generate @spines      # All hosts in spines group
+  netsert generate @all -f baseline.yaml`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGenerate(args[0], generators, username, password, insecure, outFile)
+			return runGenerate(args[0], generators, username, password, insecure, outFile, inventoryFile)
 		},
 	}
 
@@ -351,74 +356,129 @@ Examples:
 	cmd.Flags().BoolVarP(&insecure, "insecure", "k", false, "skip TLS verification")
 	cmd.Flags().StringArrayVar(&generators, "gen", nil, "generators to run (bgp, interfaces). Default: all")
 	cmd.Flags().StringVarP(&outFile, "file", "f", "", "output file (default: stdout)")
+	cmd.Flags().StringVarP(&inventoryFile, "inventory", "i", "", "inventory file (for @group targets)")
 
 	return cmd
 }
 
-func runGenerate(target string, generators []string, username, password string, insecure bool, outFile string) error {
-	// Load config for credentials if not provided
-	cfg, _ := config.Load()
-	if cfg != nil && (username == "" || password == "") {
-		cfgUser, cfgPass, cfgInsecure := cfg.GetCredentials(target)
-		if username == "" {
-			username = cfgUser
+func runGenerate(target string, generators []string, username, password string, insecure bool, outFile, inventoryFile string) error {
+	// Expand @group targets
+	var targets []string
+	if strings.HasPrefix(target, "@") {
+		groupName := strings.TrimPrefix(target, "@")
+
+		// Load inventory
+		var inv *inventory.Inventory
+		var err error
+		if inventoryFile != "" {
+			inv, err = inventory.Load(inventoryFile)
+		} else {
+			inv, _, err = inventory.AutoDiscover()
 		}
-		if password == "" {
-			password = cfgPass
+		if err != nil {
+			return fmt.Errorf("load inventory: %w", err)
 		}
-		if !insecure {
-			insecure = cfgInsecure
+		if inv == nil {
+			return fmt.Errorf("target %s requires inventory - create inventory.yaml or pass -i", target)
 		}
+
+		hosts, ok := inv.GetGroup(groupName)
+		if !ok {
+			return fmt.Errorf("group %q not found in inventory", groupName)
+		}
+		if len(hosts) == 0 {
+			return fmt.Errorf("group %q is empty", groupName)
+		}
+		targets = hosts
+	} else {
+		targets = []string{target}
 	}
+
+	// Load config for credentials
+	cfg, _ := config.Load()
 
 	// Default to all generators
 	if len(generators) == 0 {
 		generators = generate.List()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	// Generate for all targets
+	var allTargets []assertion.Target
+	var totalAssertions int
 
-	client, err := gnmiclient.NewClient(gnmiclient.Config{
-		Address:  target,
-		Username: username,
-		Password: password,
-		Insecure: insecure,
-		Timeout:  timeout,
-	})
-	if err != nil {
-		return fmt.Errorf("connect to %s: %w", target, err)
-	}
-	defer client.Close()
+	for _, t := range targets {
+		// Get credentials for this target
+		u, p, ins := username, password, insecure
+		if cfg != nil {
+			cfgUser, cfgPass, cfgInsecure := cfg.GetCredentials(t)
+			if u == "" {
+				u = cfgUser
+			}
+			if p == "" {
+				p = cfgPass
+			}
+			if !ins {
+				ins = cfgInsecure
+			}
+		}
 
-	// Generate assertions
-	af, err := generate.GenerateFile(ctx, client, generators, generate.Options{
-		Target:   target,
-		Username: username,
-		Password: password,
-	})
-	if err != nil {
-		return fmt.Errorf("generate: %w", err)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+
+		client, err := gnmiclient.NewClient(gnmiclient.Config{
+			Address:  t,
+			Username: u,
+			Password: p,
+			Insecure: ins,
+			Timeout:  timeout,
+		})
+		if err != nil {
+			cancel()
+			return fmt.Errorf("connect to %s: %w", t, err)
+		}
+
+		af, err := generate.GenerateFile(ctx, client, generators, generate.Options{
+			Target:   t,
+			Username: u,
+			Password: p,
+		})
+		client.Close()
+		cancel()
+
+		if err != nil {
+			return fmt.Errorf("generate from %s: %w", t, err)
+		}
+
+		if len(af.Targets) > 0 {
+			allTargets = append(allTargets, af.Targets[0])
+			totalAssertions += len(af.Targets[0].Assertions)
+		}
+
+		if output != "json" && len(targets) > 1 {
+			fmt.Fprintf(os.Stderr, "Generated from %s (%d assertions)\n", t, len(af.Targets[0].Assertions))
+		}
 	}
+
+	// Combine into single file
+	combined := &assertion.AssertionFile{Targets: allTargets}
 
 	// Convert to YAML
-	yamlData, err := yaml.Marshal(af)
+	yamlData, err := yaml.Marshal(combined)
 	if err != nil {
 		return fmt.Errorf("marshal YAML: %w", err)
 	}
 
 	// Add header comment
 	header := fmt.Sprintf("# Generated by netsert from %s\n# Review and edit as needed\n\n", target)
-	output := header + string(yamlData)
+	result := header + string(yamlData)
 
 	// Write to file or stdout
 	if outFile != "" {
-		if err := os.WriteFile(outFile, []byte(output), 0644); err != nil {
+		if err := os.WriteFile(outFile, []byte(result), 0644); err != nil {
 			return fmt.Errorf("write file: %w", err)
 		}
-		fmt.Printf("Generated %d assertions to %s\n", len(af.Targets[0].Assertions), outFile)
+		fmt.Printf("Generated %d assertions (%d targets) to %s\n", totalAssertions, len(allTargets), outFile)
 	} else {
-		fmt.Print(output)
+		fmt.Print(result)
 	}
 
 	return nil
