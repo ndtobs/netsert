@@ -138,6 +138,11 @@ func validateCmd() *cobra.Command {
 }
 
 func runAssertions(path string, workers, parallel int, failFast bool, inventoryFile, group string) error {
+	// Validate: -g requires -i
+	if group != "" && inventoryFile == "" {
+		return fmt.Errorf("--group/-g requires --inventory/-i to be specified")
+	}
+
 	af, err := assertion.LoadFile(path)
 	if err != nil {
 		return fmt.Errorf("load assertions: %w", err)
@@ -153,6 +158,14 @@ func runAssertions(path string, workers, parallel int, failFast bool, inventoryF
 
 		// Expand group references in assertion file
 		af = expandInventoryGroups(af, inv, group)
+
+		// Check if filtering resulted in no targets
+		if len(af.Targets) == 0 {
+			if group != "" {
+				return fmt.Errorf("no targets match group %q - check that assertion file uses @group syntax or hosts are in the group", group)
+			}
+			return fmt.Errorf("no targets found after expanding inventory groups")
+		}
 	}
 
 	// Load config (credentials, defaults)

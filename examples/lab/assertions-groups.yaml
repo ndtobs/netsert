@@ -1,0 +1,40 @@
+# Assertions using inventory groups
+# Run with: netsert run -i inventory.yaml assertions-groups.yaml
+# Filter:   netsert run -i inventory.yaml -g spines assertions-groups.yaml
+
+targets:
+  # @all expands to all hosts in the "all" group
+  - host: "@all"
+    assertions:
+      - name: Hostname configured
+        path: system/state/hostname
+        exists: true
+
+      - name: Ethernet1 is UP
+        path: interface[Ethernet1]/state/oper-status
+        equals: "UP"
+
+  # @spines expands to just spine hosts
+  - host: "@spines"
+    assertions:
+      - name: Spine has 2 BGP peers
+        path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.1.2]/state/session-state
+        equals: "ESTABLISHED"
+
+      - name: Ethernet2 is UP (spine only)
+        path: interface[Ethernet2]/state/oper-status
+        equals: "UP"
+
+  # Leaf1 specific (peers with spine at 10.0.1.1)
+  - host: "clab-netsert-leaf1:6030"
+    assertions:
+      - name: Leaf1 BGP to spine
+        path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.1.1]/state/session-state
+        equals: "ESTABLISHED"
+
+  # Leaf2 specific (peers with spine at 10.0.2.1)
+  - host: "clab-netsert-leaf2:6030"
+    assertions:
+      - name: Leaf2 BGP to spine
+        path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.2.1]/state/session-state
+        equals: "ESTABLISHED"

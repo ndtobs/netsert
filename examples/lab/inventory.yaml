@@ -1,0 +1,19 @@
+# Lab inventory
+# Use with: netsert run -i inventory.yaml assertions-groups.yaml
+
+defaults:
+  username: admin
+  password: admin
+  insecure: true
+
+groups:
+  spines:
+    - clab-netsert-spine1:6030
+
+  leafs:
+    - clab-netsert-leaf1:6030
+    - clab-netsert-leaf2:6030
+
+  all:
+    - "@spines"
+    - "@leafs"
