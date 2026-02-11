@@ -136,39 +136,7 @@ Value: UP
 
 ---
 
-## Step 5: Configure BGP (Optional)
-
-To test BGP assertions, configure BGP on the devices:
-
-```bash
-# Spine1
-docker exec clab-netsert-spine1 bash -c 'echo -e "configure\nrouter bgp 65000\nrouter-id 10.255.0.1\nneighbor 10.0.1.2 remote-as 65001\nneighbor 10.0.2.2 remote-as 65002" | Cli -p 15'
-
-# Leaf1
-docker exec clab-netsert-leaf1 bash -c 'echo -e "configure\nrouter bgp 65001\nrouter-id 10.255.1.1\nneighbor 10.0.1.1 remote-as 65000" | Cli -p 15'
-
-# Leaf2
-docker exec clab-netsert-leaf2 bash -c 'echo -e "configure\nrouter bgp 65002\nrouter-id 10.255.2.1\nneighbor 10.0.2.1 remote-as 65000" | Cli -p 15'
-```
-
-Verify BGP is up:
-
-```bash
-docker exec clab-netsert-spine1 Cli -p 15 -c 'show ip bgp summary'
-```
-
-Output:
-```
-BGP summary information for VRF default
-Router identifier 10.255.0.1, local AS number 65000
-  Neighbor V AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down State   PfxRcd PfxAcc
-  10.0.1.2 4 65001              4         3    0    0 00:00:05 Estab   0      0
-  10.0.2.2 4 65002              2         2    0    0 00:00:00 Estab   0      0
-```
-
----
-
-## Step 6: Generate Assertions
+## Step 5: Generate Assertions
 
 Instead of writing assertions by hand, generate them from the live device:
 
@@ -216,7 +184,7 @@ You can also generate specific features:
 
 ---
 
-## Step 7: Run Assertions
+## Step 6: Run Assertions
 
 Now run the assertions against the live device:
 
@@ -273,7 +241,7 @@ Output:
 
 ---
 
-## Step 8: Simulate a Failure
+## Step 7: Simulate a Failure
 
 Let's break something and see how netsert catches it:
 
@@ -319,7 +287,7 @@ docker exec clab-netsert-spine1 bash -c 'echo -e "configure\ninterface Ethernet1
 
 ---
 
-## Step 9: Run Unit Tests
+## Step 8: Run Unit Tests
 
 ```bash
 go test ./...
@@ -333,7 +301,7 @@ ok  	github.com/ndtobs/netsert/pkg/gnmiclient  0.002s
 
 ---
 
-## Step 10: Clean Up
+## Step 9: Clean Up
 
 ```bash
 # Destroy the lab
