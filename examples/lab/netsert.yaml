@@ -1,0 +1,9 @@
+# netsert config for lab environment
+# Credentials match the lab device configs
+
+defaults:
+  username: admin
+  password: admin
+  insecure: true
+  workers: 10
+  parallel: 5
