@@ -91,7 +91,7 @@ targets:
 
 netsert pulls the config and creates the assertion automatically from the device's current state.  
 
-Available generators: `interfaces`, `bgp` (more coming)
+Available generators: `interfaces`, `bgp`, `ospf`, `lldp`, `system`
 
 ## Inventory Support
 

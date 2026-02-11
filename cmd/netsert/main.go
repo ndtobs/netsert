@@ -295,6 +295,9 @@ func generateCmd() *cobra.Command {
 Available generators:
   bgp         - BGP neighbor session states
   interfaces  - Interface oper-status
+  lldp        - LLDP neighbor relationships
+  ospf        - OSPF neighbor states
+  system      - Hostname and software version
 
 Examples:
   netsert generate spine1:6030 --gen bgp
