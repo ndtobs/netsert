@@ -37,8 +37,22 @@ func (g *LLDPGenerator) Generate(ctx context.Context, client *gnmiclient.Client,
 		return nil, err
 	}
 
+	// Track which interfaces we've already created assertions for
+	seen := make(map[string]bool)
+
 	var assertions []assertion.Assertion
 	for _, n := range neighbors {
+		// Skip management interfaces (often have multiple neighbors in lab environments)
+		if g.isSkippedInterface(n.LocalInterface) {
+			continue
+		}
+
+		// Skip if we've already created an assertion for this interface
+		if seen[n.LocalInterface] {
+			continue
+		}
+		seen[n.LocalInterface] = true
+
 		// Assert on remote system name
 		if n.RemoteSystem != "" {
 			name := fmt.Sprintf("LLDP %s connects to %s", n.LocalInterface, n.RemoteSystem)
@@ -53,6 +67,26 @@ func (g *LLDPGenerator) Generate(ctx context.Context, client *gnmiclient.Client,
 	}
 
 	return assertions, nil
+}
+
+// isSkippedInterface returns true for interfaces we typically don't monitor
+func (g *LLDPGenerator) isSkippedInterface(name string) bool {
+	prefixes := []string{
+		"Management",
+		"mgmt",
+		"ma",
+		"fxp",    // Juniper management
+		"em",     // Juniper internal
+		"vme",    // Arista
+	}
+
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (g *LLDPGenerator) getNeighbors(ctx context.Context, client *gnmiclient.Client, opts Options) ([]lldpNeighbor, error) {

@@ -62,7 +62,11 @@ func (g *OSPFGenerator) getNeighbors(ctx context.Context, client *gnmiclient.Cli
 
 	value, exists, err := client.Get(ctx, path, opts.Username, opts.Password)
 	if err != nil {
-		if strings.Contains(err.Error(), "NotFound") || strings.Contains(err.Error(), "not found") {
+		// OSPF might not be configured - that's okay, return empty
+		if strings.Contains(err.Error(), "NotFound") || 
+		   strings.Contains(err.Error(), "not found") ||
+		   strings.Contains(err.Error(), "path invalid") ||
+		   strings.Contains(err.Error(), "InvalidArgument") {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("query OSPF areas: %w", err)
