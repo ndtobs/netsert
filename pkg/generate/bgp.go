@@ -22,20 +22,27 @@ func (g *BGPGenerator) Name() string {
 }
 
 func (g *BGPGenerator) Description() string {
-	return "Generate assertions for BGP neighbor states"
+	return "Generate assertions for BGP neighbor states and AFI-SAFI"
 }
 
 // bgpNeighborState represents the relevant BGP neighbor state
 type bgpNeighborState struct {
-	NeighborAddress string `json:"neighbor-address"`
-	SessionState    string `json:"session-state"`
-	PeerAS          uint32 `json:"peer-as"`
-	LocalAS         uint32 `json:"local-as"`
-	PeerType        string `json:"peer-type"`
+	NeighborAddress string
+	SessionState    string
+	PeerAS          uint32
+	LocalAS         uint32
+	PeerType        string
+	AfiSafis        []afiSafiState
+}
+
+// afiSafiState represents AFI-SAFI state for a neighbor
+type afiSafiState struct {
+	Name   string
+	Active bool
 }
 
 func (g *BGPGenerator) Generate(ctx context.Context, client *gnmiclient.Client, opts Options) ([]assertion.Assertion, error) {
-	// Try OpenConfig path first (works on Arista, Nokia, etc.)
+	// Get neighbors with AFI-SAFI info
 	neighbors, err := g.getOpenConfigNeighbors(ctx, client, opts)
 	if err != nil {
 		return nil, err
@@ -43,11 +50,8 @@ func (g *BGPGenerator) Generate(ctx context.Context, client *gnmiclient.Client, 
 
 	var assertions []assertion.Assertion
 	for _, n := range neighbors {
-		// Only generate assertions for established sessions
-		// Users can edit the file to add assertions for non-established peers
+		// Session state assertion
 		name := fmt.Sprintf("BGP peer %s is %s", n.NeighborAddress, n.SessionState)
-
-		// Use short path format - will be expanded at load time
 		path := fmt.Sprintf("bgp[default]/neighbors/neighbor[neighbor-address=%s]/state/session-state", n.NeighborAddress)
 
 		assertions = append(assertions, assertion.Assertion{
@@ -55,6 +59,20 @@ func (g *BGPGenerator) Generate(ctx context.Context, client *gnmiclient.Client, 
 			Path:   path,
 			Equals: strPtr(n.SessionState),
 		})
+
+		// AFI-SAFI assertions for active address families
+		for _, afi := range n.AfiSafis {
+			if afi.Active {
+				afiName := fmt.Sprintf("BGP peer %s AFI %s is active", n.NeighborAddress, afi.Name)
+				afiPath := fmt.Sprintf("bgp[default]/neighbors/neighbor[neighbor-address=%s]/afi-safis/afi-safi[afi-safi-name=%s]/state/active", n.NeighborAddress, afi.Name)
+
+				assertions = append(assertions, assertion.Assertion{
+					Name:   afiName,
+					Path:   afiPath,
+					Equals: strPtr("true"),
+				})
+			}
+		}
 	}
 
 	return assertions, nil
@@ -82,10 +100,9 @@ func (g *BGPGenerator) getOpenConfigNeighbors(ctx context.Context, client *gnmic
 }
 
 func (g *BGPGenerator) parseNeighbors(jsonData string) ([]bgpNeighborState, error) {
-	// The response structure varies, try to handle common formats
 	var neighbors []bgpNeighborState
 
-	// Try parsing as OpenConfig structure
+	// Try parsing as OpenConfig structure with AFI-SAFI
 	var ocResponse struct {
 		Neighbor []struct {
 			NeighborAddress string `json:"neighbor-address"`
@@ -96,46 +113,54 @@ func (g *BGPGenerator) parseNeighbors(jsonData string) ([]bgpNeighborState, erro
 				LocalAS         uint32 `json:"local-as"`
 				PeerType        string `json:"peer-type"`
 			} `json:"state"`
+			AfiSafis struct {
+				AfiSafi []struct {
+					AfiSafiName string `json:"afi-safi-name"`
+					State       struct {
+						AfiSafiName string `json:"afi-safi-name"`
+						Active      bool   `json:"active"`
+						Enabled     bool   `json:"enabled"`
+						Prefixes    struct {
+							Received  uint32 `json:"received"`
+							Sent      uint32 `json:"sent"`
+							Installed uint32 `json:"installed"`
+						} `json:"prefixes"`
+					} `json:"state"`
+				} `json:"afi-safi"`
+			} `json:"afi-safis"`
 		} `json:"openconfig-network-instance:neighbor"`
 	}
 
 	if err := json.Unmarshal([]byte(jsonData), &ocResponse); err == nil && len(ocResponse.Neighbor) > 0 {
 		for _, n := range ocResponse.Neighbor {
-			neighbors = append(neighbors, bgpNeighborState{
+			neighbor := bgpNeighborState{
 				NeighborAddress: n.State.NeighborAddress,
 				SessionState:    n.State.SessionState,
 				PeerAS:          n.State.PeerAS,
 				LocalAS:         n.State.LocalAS,
 				PeerType:        n.State.PeerType,
-			})
+			}
+
+			// Parse AFI-SAFIs
+			for _, afi := range n.AfiSafis.AfiSafi {
+				afiName := normalizeAfiSafiName(afi.AfiSafiName)
+				if afiName == "" {
+					afiName = normalizeAfiSafiName(afi.State.AfiSafiName)
+				}
+				if afiName != "" {
+					neighbor.AfiSafis = append(neighbor.AfiSafis, afiSafiState{
+						Name:   afiName,
+						Active: afi.State.Active,
+					})
+				}
+			}
+
+			neighbors = append(neighbors, neighbor)
 		}
 		return neighbors, nil
 	}
 
-	// Try Arista-specific format
-	var aristaResponse struct {
-		Neighbor []struct {
-			NeighborAddress string `json:"neighbor-address"`
-			State           struct {
-				NeighborAddress string `json:"neighbor-address"`
-				SessionState    string `json:"session-state"`
-				PeerAS          uint32 `json:"peer-as"`
-			} `json:"state"`
-		} `json:"arista-bgp:neighbor"`
-	}
-
-	if err := json.Unmarshal([]byte(jsonData), &aristaResponse); err == nil && len(aristaResponse.Neighbor) > 0 {
-		for _, n := range aristaResponse.Neighbor {
-			neighbors = append(neighbors, bgpNeighborState{
-				NeighborAddress: n.State.NeighborAddress,
-				SessionState:    n.State.SessionState,
-				PeerAS:          n.State.PeerAS,
-			})
-		}
-		return neighbors, nil
-	}
-
-	// Try generic neighbor array
+	// Try generic neighbor array format
 	var genericResponse struct {
 		Neighbor []json.RawMessage `json:"neighbor"`
 	}
@@ -145,21 +170,58 @@ func (g *BGPGenerator) parseNeighbors(jsonData string) ([]bgpNeighborState, erro
 			var n struct {
 				NeighborAddress string `json:"neighbor-address"`
 				State           struct {
-					SessionState string `json:"session-state"`
-					PeerAS       uint32 `json:"peer-as"`
+					NeighborAddress string `json:"neighbor-address"`
+					SessionState    string `json:"session-state"`
+					PeerAS          uint32 `json:"peer-as"`
 				} `json:"state"`
+				AfiSafis struct {
+					AfiSafi []struct {
+						AfiSafiName string `json:"afi-safi-name"`
+						State       struct {
+							AfiSafiName string `json:"afi-safi-name"`
+							Active      bool   `json:"active"`
+						} `json:"state"`
+					} `json:"afi-safi"`
+				} `json:"afi-safis"`
 			}
 			if err := json.Unmarshal(raw, &n); err == nil && n.NeighborAddress != "" {
-				neighbors = append(neighbors, bgpNeighborState{
+				neighbor := bgpNeighborState{
 					NeighborAddress: n.NeighborAddress,
 					SessionState:    n.State.SessionState,
 					PeerAS:          n.State.PeerAS,
-				})
+				}
+				if neighbor.NeighborAddress == "" {
+					neighbor.NeighborAddress = n.State.NeighborAddress
+				}
+
+				for _, afi := range n.AfiSafis.AfiSafi {
+					afiName := normalizeAfiSafiName(afi.AfiSafiName)
+					if afiName == "" {
+						afiName = normalizeAfiSafiName(afi.State.AfiSafiName)
+					}
+					if afiName != "" {
+						neighbor.AfiSafis = append(neighbor.AfiSafis, afiSafiState{
+							Name:   afiName,
+							Active: afi.State.Active,
+						})
+					}
+				}
+
+				neighbors = append(neighbors, neighbor)
 			}
 		}
 	}
 
 	return neighbors, nil
+}
+
+// normalizeAfiSafiName strips namespace prefixes and returns canonical name
+func normalizeAfiSafiName(name string) string {
+	// Strip common prefixes like "openconfig-bgp-types:" or "oc-bgp-types:"
+	if idx := strings.LastIndex(name, ":"); idx >= 0 {
+		name = name[idx+1:]
+	}
+	return name
 }
 
 func strPtr(s string) *string {
