@@ -1,16 +1,50 @@
-<p align="center">
-  <img src="assets/logo.svg" alt="netsert logo" width="300">
-</p>
+# netsert
 
-<p align="center">
-  <strong>Define what your network <em>should</em> look like. netsert tells you if it <em>does</em>.</strong>
-</p>
+Declarative network state testing — validate live networks against YAML assertions via gNMI.
 
-<p align="center">
-  Network testing for the GitOps era. Write assertions as YAML, run them against live devices via gNMI, and catch misconfigurations before they become outages. Fast, declarative, and built for CI/CD pipelines.
-</p>
+## Overview
 
----
+`netsert` lets you define what your network *should* look like as YAML assertions, then validates that state against live devices via gNMI. Catch misconfigurations before they become outages.
+
+```
+YAML Assertions → netsert run → Live Network → Pass/Fail Results
+```
+
+## Installation
+
+```bash
+go install github.com/ndtobs/netsert/cmd/netsert@latest
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/ndtobs/netsert
+cd netsert
+go build -o netsert ./cmd/netsert
+```
+
+## Quick Start
+
+Run assertions against a device:
+
+```bash
+netsert run assertions.yaml --target spine1:6030 -u admin -P password -k
+```
+
+Generate assertions from live state:
+
+```bash
+netsert generate spine1:6030 -u admin -P password -k > baseline.yaml
+```
+
+Run against all devices in inventory:
+
+```bash
+netsert run assertions.yaml -i inventory.yaml
+```
+
+## Assertion Format
 
 ```yaml
 targets:
@@ -25,6 +59,8 @@ targets:
         equals: "ESTABLISHED"
 ```
 
+### Example Output
+
 ```bash
 $ netsert run assertions.yaml
 
@@ -37,118 +73,77 @@ Completed in 92ms
   Failed: 0
 ```
 
-## Why netsert?
+## Assertion Types
 
-- **Declarative** — Define expected state, not procedures
-- **Fast** — gNMI over gRPC, not CLI scraping  
-- **CI/CD ready** — JSON output, exit codes, runs headless
-- **Generate from live state** — Bootstrap assertions from real devices
-- **Vendor neutral** — Works with any gNMI-enabled device
+| Type | Example | Description |
+|------|---------|-------------|
+| `equals` | `equals: "UP"` | Exact match |
+| `contains` | `contains: "Ethernet"` | Substring match |
+| `matches` | `matches: "^(UP\|DOWN)$"` | Regex match |
+| `exists` | `exists: true` | Path exists |
+| `absent` | `absent: true` | Path does not exist |
+| `gt`, `lt`, `gte`, `lte` | `gt: "100"` | Numeric comparison |
 
-## Install
+## Generators
 
-```bash
-go install github.com/ndtobs/netsert/cmd/netsert@latest
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/ndtobs/netsert.git
-cd netsert && go build -o netsert ./cmd/netsert
-```
-
-## Quick Start
+Generate assertions from current device state:
 
 ```bash
-# Set up credentials
-cp examples/netsert.yaml .
-
-# Generate assertions from a live device
-./netsert generate spine1:6030 -f baseline.yaml
-
-# Run assertions
-./netsert run baseline.yaml
+netsert generate spine1:6030 --generators interfaces,bgp
 ```
 
-## Generate Assertions from Live Devices
+| Generator | Description |
+|-----------|-------------|
+| `interfaces` | Interface status, IPs, descriptions |
+| `bgp` | BGP neighbors and session state |
+| `ospf` | OSPF neighbors and areas |
+| `lldp` | LLDP neighbor relationships |
+| `system` | Hostname, version, NTP |
 
-Don't write assertions by hand — generate them from current state:
+## Inventory
 
-```bash
-$ netsert generate spine1:6030
-
-targets:
-  - host: spine1:6030
-    assertions:
-      - name: Ethernet1 is UP
-        path: interface[Ethernet1]/state/oper-status
-        equals: UP
-      - name: BGP peer 10.0.0.2 is ESTABLISHED
-        path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
-        equals: ESTABLISHED
-```
-
-netsert polls the device to create the assertion automatically from the device's current state.  
-
-Available generators: `interfaces`, `bgp`, `ospf`, `lldp`, `system`
-
-## Inventory Support
-
-Run against device groups:
+Organize devices into groups:
 
 ```yaml
 # inventory.yaml
 groups:
-  spines:
+  spine:
     - spine1:6030
     - spine2:6030
-  leafs:
+  leaf:
     - leaf1:6030
     - leaf2:6030
   all:
-    - "@spines"
-    - "@leafs"
+    - "@spine"
+    - "@leaf"
+
+defaults:
+  username: admin
+  password: admin
+  insecure: true
 ```
+
+Run by group:
 
 ```bash
-netsert run -i inventory.yaml assertions.yaml           # All devices
-netsert run -i inventory.yaml -g spines assertions.yaml # Just spines
+netsert run assertions.yaml -i inventory.yaml -g spine
 ```
 
-Also supports Ansible INI inventory format.
+## Short Paths
 
-## CI/CD Integration
+OpenConfig paths can be verbose. netsert supports short paths:
 
-netsert exits with code 1 on failure — CI pipelines automatically block bad changes.
+| Short Path | Expands To |
+|------------|------------|
+| `interface[Ethernet1]/...` | `/interfaces/interface[name=Ethernet1]/...` |
+| `bgp[default]/neighbors/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/...` |
+| `ospf[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=OSPF][name=OSPF]/ospf/...` |
+| `system/...` | `/system/...` |
+| `lldp/...` | `/lldp/...` |
 
-```yaml
-# .gitlab-ci.yml
-stages:
-  - deploy
-  - validate
-
-deploy:
-  stage: deploy
-  script:
-    - ansible-playbook push-config.yaml
-
-validate:
-  stage: validate
-  script:
-    - netsert run -i inventory.yaml assertions/post-deploy.yaml
-    # If netsert exits 1, pipeline fails — merge blocked
-```
-
-```yaml
-# GitHub Actions
-- name: Validate network state
-  run: netsert run -o json assertions.yaml > results.json
-```
+Paths starting with `/` are absolute. Paths without `/` are short paths.
 
 ## Concurrency
-
-netsert processes targets and assertions in parallel for speed:
 
 ```bash
 netsert run -w 10 -p 5 assertions.yaml
@@ -159,38 +154,36 @@ netsert run -w 10 -p 5 assertions.yaml
 | `-w, --workers` | 10 | Concurrent targets (devices) |
 | `-p, --parallel` | 5 | Concurrent assertions per target |
 
-**Example:** 100 devices × 20 assertions each
-- 10 devices processed at a time
-- 5 assertions per device running concurrently
-- Total: ~10 batches instead of 100 sequential connections
+## CI/CD Integration
 
-Set in config file for permanent defaults:
+netsert exits with code 1 on failure:
 
 ```yaml
-# netsert.yaml
-defaults:
-  workers: 10
-  parallel: 5
+# GitHub Actions
+- name: Validate network state
+  run: netsert run -i inventory.yaml assertions.yaml
+
+# JSON output for parsing
+- run: netsert run -o json assertions.yaml > results.json
 ```
 
-## Short Paths
+## CLI Reference
 
-OpenConfig paths can be verbose. netsert supports a **short path format** that expands automatically:
+```
+netsert run <file> [flags]
 
-| Short Path | Expands To |
-|------------|------------|
-| `bgp[default]/neighbors/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=BGP][name=BGP]/bgp/neighbors/...` |
-| `bgp[customer-a]/...` | `/network-instances/network-instance[name=customer-a]/protocols/protocol[identifier=BGP][name=BGP]/bgp/...` |
-| `interface[Ethernet1]/...` | `/interfaces/interface[name=Ethernet1]/...` |
-| `ospf[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=OSPF][name=OSPF]/ospf/...` |
-| `isis[default]/...` | `/network-instances/network-instance[name=default]/protocols/protocol[identifier=ISIS][name=ISIS]/isis/...` |
-| `system/...` | `/system/...` |
-| `lldp/...` | `/lldp/...` |
-| `network-instance[mgmt]/...` | `/network-instances/network-instance[name=mgmt]/...` |
-
-**The rule**: Paths starting with `/` are absolute (used as-is). Paths without a leading `/` are short paths that get expanded.
-
-Full OpenConfig paths always work — short paths are optional convenience.
+Flags:
+  -t, --target string      single target (host:port)
+  -i, --inventory string   inventory file for groups
+  -g, --group string       run against specific group
+  -u, --username string    gNMI username
+  -P, --password string    gNMI password
+  -k, --insecure           skip TLS verification
+  -w, --workers int        concurrent targets (default 10)
+  -p, --parallel int       concurrent assertions per target (default 5)
+  -o, --output string      output format: text, json (default text)
+      --timeout duration   gNMI timeout (default 30s)
+```
 
 ## Commands
 
@@ -201,24 +194,10 @@ Full OpenConfig paths always work — short paths are optional convenience.
 | `get` | Query a single gNMI path |
 | `validate` | Check assertion file syntax |
 
-## Assertion Types
+## Related Tools
 
-| Type | Example |
-|------|---------|
-| `equals` | `equals: "UP"` |
-| `contains` | `contains: "Ethernet"` |
-| `matches` | `matches: "^(UP\|DOWN)$"` |
-| `exists` / `absent` | `exists: true` |
-| `gt`, `lt`, `gte`, `lte` | `gt: "100"` |
-
-## Documentation
-
-- **[Tutorial](TUTORIAL.md)** — Hands-on walkthrough with Containerlab
-- **[Examples](examples/)** — Sample files and lab topology
-
-## Supported Platforms
-
-Tested with Arista cEOS. Should work with any gNMI-enabled device (Nokia SR Linux, Cisco IOS-XR, Juniper).
+- **[netmodel](https://github.com/ndtobs/netmodel)** — Export network config to YAML for IaC
+- **netsert** validates state, **netmodel** exports configuration
 
 ## License
 
