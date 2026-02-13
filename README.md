@@ -52,6 +52,26 @@ Completed in 92ms
   Failed: 0
 ```
 
+## Try It
+
+Use the [network-labs](https://github.com/ndtobs/network-labs) EVPN topology (requires [containerlab](https://containerlab.dev) + cEOS):
+
+```bash
+# Clone and deploy lab
+git clone https://github.com/ndtobs/network-labs.git
+cd network-labs/evpn-spine-leaf
+sudo clab deploy -t topology.yaml
+
+# Wait ~90s for boot, then run assertions
+netsert run -i inventory.yaml assertions.yaml
+
+# Run only against leaf switches
+netsert run -i inventory.yaml -g leaf assertions.yaml
+
+# Cleanup
+sudo clab destroy -t topology.yaml
+```
+
 ## Documentation
 
 Full documentation: **[rob0t.tools/docs/netsert](https://rob0t.tools/docs/netsert/)**
