@@ -286,12 +286,16 @@ func expandInventoryGroups(af *assertion.AssertionFile, inv *inventory.Inventory
 			// Create a target for each host in the group
 			for _, host := range hosts {
 				newTarget := target
-				newTarget.Host = host
-				newTarget.Address = "" // Clear deprecated field
+				newTarget.Host = inv.ResolveHost(host) // Resolve to address:port
+				newTarget.Address = ""                 // Clear deprecated field
 				newTargets = append(newTargets, newTarget)
 			}
 		} else {
-			newTargets = append(newTargets, target)
+			// Non-group target - still resolve through inventory if available
+			newTarget := target
+			newTarget.Host = inv.ResolveHost(target.GetHost())
+			newTarget.Address = ""
+			newTargets = append(newTargets, newTarget)
 		}
 	}
 
@@ -299,9 +303,10 @@ func expandInventoryGroups(af *assertion.AssertionFile, inv *inventory.Inventory
 	if filterGroup != "" {
 		hosts, ok := inv.GetGroup(filterGroup)
 		if ok {
+			// Build set of resolved addresses for hosts in the filter group
 			hostSet := make(map[string]bool)
 			for _, h := range hosts {
-				hostSet[h] = true
+				hostSet[inv.ResolveHost(h)] = true
 			}
 
 			var filtered []assertion.Target
