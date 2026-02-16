@@ -38,6 +38,16 @@ targets:
       - name: BGP peer established
         path: bgp[default]/neighbors/neighbor[neighbor-address=10.0.0.2]/state/session-state
         equals: "ESTABLISHED"
+
+  - host: leaf1:6030
+    assertions:
+      - name: VXLAN VTEP source is Loopback0
+        path: interfaces/interface[name=Vxlan1]/arista-vxlan/state/src-ip-intf
+        equals: Loopback0
+
+      - name: VLAN 10 maps to VNI 10010
+        path: interfaces/interface[name=Vxlan1]/arista-vxlan/vlan-to-vnis/vlan-to-vni[vlan=10]/state/vni
+        equals: "10010"
 ```
 
 ```bash
@@ -71,6 +81,27 @@ netsert run -i inventory.yaml -g leaf assertions.yaml
 # Cleanup
 sudo clab destroy -t topology.yaml
 ```
+
+## Generators
+
+Auto-generate assertions from live network state:
+
+```bash
+# Generate all assertions
+netsert generate spine1:6030 -u admin -P password -k
+
+# Generate specific types
+netsert generate spine1:6030 --gen bgp,vxlan -u admin -P password -k
+```
+
+| Generator | Description |
+|-----------|-------------|
+| `interfaces` | Interface oper-status, IP addresses |
+| `bgp` | BGP neighbor session state, AFI-SAFI |
+| `ospf` | OSPF neighbor adjacencies |
+| `lldp` | LLDP neighbor discovery |
+| `vxlan` | VTEP source, VLAN→VNI, VRF→L3VNI mappings |
+| `system` | Hostname, NTP sync status |
 
 ## Documentation
 
